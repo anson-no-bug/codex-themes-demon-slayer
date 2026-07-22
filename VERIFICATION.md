@@ -32,4 +32,10 @@
 
 ## 从零安装验收
 
-最终发布前会清除本机 Codex++ 双 App、主题配置、状态日志和已知旧 CLI 残留，再从公开 `main` 分支的一条命令重新安装。验收结果、安装文件哈希和实测版本在最终推送前写入本节。
+- 执行 `sh install.sh --purge` 前精确停止唯一的 `CodexPlusPlus` 启动器进程；清除后确认两个 Codex++ App、`~/.config/Codex++/`、`~/.codex-session-delete/`、旧支持目录和断链 `~/.local/bin/codexplusplus` 全部不存在。
+- 第一次冷清除在两个 App 删除后暴露 macOS `/bin/sh` 对 `$label：` 全角标点的变量边界问题；修复为 `${label}` 并加入静态检查后，从中断点继续完成清除。该问题没有触及官方 Codex 或会话数据。
+- 修复推送后又从头执行了一次完整的 `--purge`，再原样执行 README 公网安装命令；第二轮没有中断、没有依赖人工补装，证明清除与冷安装流程可重复。
+- 清除后复核 `/Applications/ChatGPT.app`：Bundle ID `com.openai.codex`，OpenAI Team ID `2DC432GLL2`，`codesign --verify --deep --strict` 与公证票据均正常；本机代码签名身份数量为 0，未发现旧 App 备份或已加载 watcher。
+- 随后原样执行 README 公网命令。安装器从公开 `main` 获取自身与主题归档，自动下载 BigPizzaV3 v1.2.41 arm64 DMG（32.4 MB），SHA-256 和 `hdiutil verify` 均通过，两个 App 的版本与签名结构复核通过。
+- 公网 `--check` 通过。仓库构建产物与安装到 `~/.config/Codex++/user_scripts/` 的脚本 SHA-256 均为 `e96321cfbd1f1c9c5c1d70749fb3957d2727e7d35f93d8d79845657d8d908b73`。
+- 启动刚安装的 `/Applications/Codex++.app` 后，真实渲染器报告主题版本 `0.5.21`、47 个 WebP 变量、19 个地点变量、1 张共享背景、四模块本地图 `0 / 0 / 0 / 0`；任务条、标题栏、右侧案卷与 Composer 均正常显示。
