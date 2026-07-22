@@ -1,7 +1,7 @@
 {
   "id": "dev.local.demon-slayer-codex-theme",
   "name": "鬼灭之刃 · 鬼杀队任务中枢",
-  "version": "0.5.20",
+  "version": "0.5.21",
   "githubRepo": "anson-no-bug/codex-themes-demon-slayer",
   "description": "仅供本地学习：把 Codex 任务、检索与 subagent 编排成《鬼灭之刃》鬼杀队讨伐体验。",
   "author": {
@@ -15,10 +15,10 @@
     "local-learning-only",
     "chinese"
   ],
+  "delivery": "user-script",
+  "runtime": "BigPizzaV3/CodexPlusPlus",
   "scope": "renderer",
-  "main": "index.js",
-  "minRuntime": "1.0.0",
-  "permissions": [
-    "settings"
-  ]
+  "main": "demon-slayer-codex-theme.user.js",
+  "minRuntime": "1.2.41",
+  "permissions": []
 }

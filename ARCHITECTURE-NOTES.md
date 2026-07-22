@@ -1,111 +1,71 @@
 # Codex++ 交互链路笔记
 
-## 它并不直接调用 GPT
+## 当前方案：外部启动与 CDP 注入
 
-Codex++ 的核心不是“做一个新的 ChatGPT 客户端”，也没有代理 OpenAI 账号或模型 API。它修改的是 Codex Desktop 的本地启动链路：
+本主题使用 [BigPizzaV3/CodexPlusPlus](https://github.com/BigPizzaV3/CodexPlusPlus)，不再使用修改 `app.asar` 的 b-nnett 方案。
 
 ```text
-Codex.app
-  └─ app.asar 的 package.json#main 被改到一个极小 loader
-       ├─ 先加载用户目录中的 Codex++ runtime/main.js
-       └─ 无论 Codex++ 是否出错，都继续加载 Codex 原始 main
-
-runtime/main.js
-  ├─ 用 session API 追加自己的 preload（不替换 Codex 原 preload）
-  ├─ 发现 tweaks 目录
-  ├─ 启动 main-scope tweak
-  └─ 提供 IPC、存储、窗口、CDP 和 native bridge
-
-renderer preload
-  ├─ 从 main 进程读取 tweak 源码字符串
-  ├─ 在沙箱 preload 中用 CommonJS 形状执行
-  ├─ 调用 start(api)
-  ├─ 注入 Settings 页面
-  └─ 热重载/关闭时调用 stop()
+Codex++.app
+  ├─ 启动未修改、保持 OpenAI 签名的官方 Codex
+  ├─ 只在 loopback 上启用 Chromium DevTools Protocol
+  ├─ 启动 Codex++ 本地辅助服务
+  └─ 读取 ~/.config/Codex++/user_scripts/*.js
+       ├─ Runtime.evaluate：注入当前页面
+       └─ Page.addScriptToEvaluateOnNewDocument：覆盖后续页面
 ```
 
-所以“跟 Codex/GPT 打交道”分成两层：
+代价也很明确：主题只在通过 `Codex++.app` 启动时存在；直接打开官方 Codex 不会加载主题。
 
-1. **公开稳定层**：Codex++ 的 `api.settings`、`api.storage`、`api.react.waitForElement`、IPC、窗口与 CDP 接口。
-2. **宿主 UI 层**：tweak 通过 DOM、ARIA、`data-testid`、表单结构和 `MutationObserver` 感知 Codex 当前界面。Codex 的 React 并不是稳定依赖，fiber 工具只应作为最后手段。
+## 系统边界
 
-## 为什么可以直接启动 Codex
+当前方案不会：
 
-b-nnett Codex++ 只在 `app.asar` 的主入口放入一个小型 loader。用户点击原来的 `ChatGPT.app` / `Codex.app` 时，loader 自动加载用户目录中的 runtime，再扫描 `~/Library/Application Support/codex-plusplus/tweaks/`。因此主题不需要独立启动器。
+- 修改官方 `ChatGPT.app` / `Codex.app` 或其 `app.asar`；
+- 重签名官方 App；
+- 创建官方 App 备份；
+- 安装 `com.codexplusplus.watcher` 或每五分钟自动修补；
+- 创建本地代码签名证书；
+- 改变 `better-sqlite3` 等原生模块的 Team ID。
 
-修改应用会破坏 OpenAI 的原始代码签名。安装器在 macOS 上固定使用 `install --local` / `repair --force --local`，让 Codex 主进程和 `app.asar.unpacked` 中的原生模块使用同一个稳定本地签名，避免 `better-sqlite3` 因 Team ID 不一致而无法加载。官方 Codex 更新后仍需由 b-nnett watcher 重新应用补丁。
+BigPizzaV3 自身会安装两个 App，并使用 `~/.config/Codex++/` 保存用户脚本配置。它的状态与日志还可能位于 `~/.codex-session-delete/`；这些是外部启动器的数据，不是对官方 App 的补丁。
 
-## 本主题使用了什么
+## 主题运行时
 
-本主题的 manifest 明确声明：
+构建产物 `demon-slayer-codex-theme.user.js` 是一个自包含浏览器脚本：CSS、十三张队员图、一个无惨侵蚀指标、十二张对手图、十九个任务背景和两张效果图都在构建期转为 data URI，因此运行时不联网。所有实际使用的图片统一缩放并转为 WebP；七张官方人物横版素材额外限制为 `1024×576 / WebP q34`，`npm run check` 会拒绝超过 `2 MiB` 的素材目录或用户脚本。
 
-```json
-{
-  "scope": "renderer",
-  "permissions": ["settings"]
-}
-```
+任务页只消费一个当前地点变量，并把它写到根级 `--ki-shared-scene`：`body::before` 在 viewport 上只解码、绘制一张静态地点图，正文、左栏、Composer 与右侧案卷都只叠加不含 `url()` 的局部阅读渐变。因此这些区域像同一场景上的窗口连续对齐，也避免同一图片被四个模块分别裁切和绘制。旧版低透明度队员大图和未使用的正文对手变量已经移除；无惨小人物仅作为“鬼王侵蚀”的固定尺寸指标保留，队员与其他恶鬼图片只用于内容清晰的编队头像和当前对手卡，不再参与整页背景合成。
 
-实际使用：
+原始素材只用于维护和重新生成，不会进入 BigPizzaV3 用户脚本。维护者如需重新生成压缩资源可执行 `npm run optimize:assets`，该命令需要 ImageMagick；普通用户安装预构建脚本，不需要 Node.js、Homebrew 或 ImageMagick。
 
-- `api.settings.registerPage()`：在 Settings 的 TWEAKS 分组注册队服设置页。
-- `api.storage.get/set()`：保存主题开关、呼吸法、动效和氛围密度。
-- `api.log`：记录启动和安全降级信息。
-- DOM + `MutationObserver`：给输入区、任务链接、操作按钮和工具卡增加幂等标记。
-- `data-app-action-sidebar-thread-id`：作为会话稳定键，让左栏编队、正文友方、对手和地点共享同一份 `SessionState`。
-- 右侧 `background-subagents` section：在受限节点内只读 React props，以 `conversationId` 去重后推断真实小队人数；不可用时回退到可访问 DOM 信号和已缓存人数。
-- 右侧 summary panel：保持原 section、按钮和文件行，只增加可恢复标题、地点简报与任务语义。
-- 会话局部颜色作用域：Codex `--color-*` 只写在已标记的会话主容器、会话侧栏和会话摘要面板；不修改 `html` 的宿主主题 class 或根级颜色 token。
-- 构建期角色与地点 data URI：十三张本地队员图、十二张对手图和十处动画地点写入 `index.js`，运行时不联网。
+适配层只提供主题需要的最小能力：
 
-运行时没有使用：
+- `localStorage` 命名空间：保存呼吸法、动效、氛围密度、会话编队缓存和当前会话的手动换景选择；
+- `console`：记录启动与安全降级信息；
+- 只读 React fiber 查找：仅用于受限节点的真实 subagent 数量推断，失败时回退到可访问 DOM；
+- 可重复加载生命周期：新脚本实例启动前先调用旧实例的 `stop()`，清理观察器、监听器、样式和注入节点。
 
-- 网络请求（角色素材仅在本地构建时读取）；
-- 对话内容上传；
-- main-process IPC；
-- 文件系统；
-- CDP、原生窗口、Metal 或 helper process；
-- React 私有状态修改；
-- 原按钮事件替换。
+BigPizzaV3 的用户脚本列表负责启停脚本。主题不注册独立设置页；呼吸法控件保留在 Composer，其它偏好写入主题自己的命名空间存储。
 
-## 为什么不拦截按钮
+## UI 兼容策略
 
-皮肤最危险的做法是 clone/replace 发送按钮后接管 click，因为 Codex 更新后很容易丢失内部状态、快捷键和焦点。这个主题只增加：
-
-- CSS 视觉状态；
-- `title` 提示；
-- 可恢复的可见文案；
-- 不接收指针事件的装饰节点；
-- 独立的状态任务条。
-
-点击、提交、审批和取消仍由 Codex 原控件完成。
-
-## 兼容策略
-
-匹配优先级：
+主题只装饰 Codex 会话区域，并按以下优先级识别宿主结构：
 
 1. 稳定 `data-testid`；
-2. composer 主动作优先读取原生 `type="submit"`，运行态再读取 Send / Stop / Cancel / Interrupt 的 `aria-label`；
+2. 原生 `type="submit"` 和 Send / Stop / Cancel / Interrupt 的可访问名称；
 3. `aria-label` / `title` / `role`；
 4. 输入框与按钮的表单邻接关系；
 5. 受限范围内的可见文案；
-6. 仅在已识别的 summary section 内读取只读 React props；
-7. 找不到就跳过；绝不把 composer 的任意最后一个按钮当作发送键。
+6. 已识别 summary / background-subagents section 的只读 React props；
+7. 找不到就跳过，不猜测任意按钮。
 
-每个注入节点都有 `data-kisatsutai-injected`，每个被增强的宿主节点都有独立 `data-kisatsutai-*` 标记。`stop()` 会断开观察器、取消动画帧、移除监听和注入节点、恢复文案及 placeholder，并删除根主题属性。
+每个注入节点和宿主标记都有独立的 `data-kisatsutai-*` 属性。图片 data URI 只在进入任务页时写入一次；补丁运行期间会暂时断开 `MutationObserver`，因此主题自己的属性更新不会形成“写入 → 观察 → 下一帧再写入”的反馈循环。每次补丁还会清除已脱离 DOM 的发送按钮、编辑器和呼吸控件引用；同一时刻最多保留一个发送斩击节点，短时动效结束后立即释放。
 
-非会话页面走无操作退路：运行时会先撤掉现有会话标记与文案，不再装饰其侧栏，也不扫描或修补对话框、图片查看器和其它 Portal。这样原生浮层不需要“恢复主题色”，因为它们从未继承会话局部 token。
+`stop()` 会断开 `MutationObserver`、取消动画帧和定时器、移除监听与注入节点、恢复文案及 placeholder，并删除根主题属性。会话状态内存缓存上限为 160 条，持久化缓存同样有界。
 
-## 设计边界
+点击、提交、审批、取消和原按钮事件始终由 Codex 控件处理。主题不代理模型请求、不上传对话、不读取 API Key，也不直接访问文件系统或 SQLite。
 
-仅靠 renderer DOM 可以做出很好的“任务叙事皮肤”，但不能稳定、完整地读取 Codex 内部任务模型。当前的“追踪中 / 归队 / 受阻”由可访问状态区与停止按钮等公开 UI 信号推断。
+## 长期维护边界
 
-小队人数采用同样的渐进增强策略：显式人数信号优先，其次读取已识别 `background-subagents` section 的只读 `backgroundAgents` props 并按会话去重，再统计稳定的 subagent 可访问节点，最后使用该会话缓存或回退为单人。任务文字只用于选择更贴合任务类型的角色编成，不用于伪造真实代理数量。
+官方 Codex 的 DOM 和 React 结构仍会变化，所以 BigPizzaV3 只能解决“不要侵入 App 包与签名”的稳定性问题，不能消除 UI 适配工作。每次 Codex Desktop 大版本更新后仍应运行项目检查与真实界面截图验收。
 
-地点与编队不是挂在短命 DOM 节点上，而是由稳定 thread ID 派生：地点只抽取一次，队员先生成稳定顺序，人数增加时仅追加、不重排；切走再返回同一会话会恢复原状态。
-
-若未来需要百分百准确的任务阶段、代理树或工具调用类型，应该新增一个版本适配层：
-
-- 优先等待 Codex++ 暴露更高层的 task/thread lifecycle API；
-- 或在明确版本范围内，用 `api.react.findOwnerByName()` 读取只读 props；
-- 不应把 minified React fiber 路径硬编码进主题。
+性能回归使用 `npm run runtime-qa:performance`：检查整窗背景恰好一个 `url()`、四个内容模块各自为零张地点图、空闲脚本时间、图片变量零重复写入、50 次发送按钮替换后的 detached 引用，以及 30 次快速发送下的动效单实例和自动清理。

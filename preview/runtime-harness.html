@@ -217,13 +217,25 @@
         backdrop-filter: blur(12px);
       }
       [data-host-queued-message] {
-        width: min(1120px, calc(100% - 120px));
+        width: min(908px, calc(100% - 24px));
         margin: 0 auto;
-        padding: 12px 22px;
-        border-top: 1px solid rgba(209, 215, 211, 0.18);
-        border-bottom: 1px solid rgba(209, 215, 211, 0.18);
+        padding: 8px 14px;
+        border: 1px solid rgba(209, 215, 211, 0.18);
+        border-bottom: 0;
+        border-radius: 20px 20px 0 0;
         background: rgba(17, 19, 18, 0.76);
         color: rgba(235, 239, 236, 0.76);
+        backdrop-filter: blur(8px);
+      }
+      [data-host-queued-row] {
+        display: flex;
+        min-height: 28px;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      [data-host-queued-row] + [data-host-queued-row] {
+        border-top: 1px solid rgba(209, 215, 211, 0.08);
       }
       [data-host-composer-shell]::before {
         content: "";
@@ -389,6 +401,18 @@
         ><span data-thread-title-trigger><span data-thread-title>Solo archive review</span></span></a>
       </aside>
       <main class="main-surface" data-app-shell-main-content-layout="thread-edge-scroll">
+        <header
+          data-app-shell-header-edge-scroll="true"
+          data-host-titlebar-fixture="true"
+          style="position: absolute; inset: 0 0 auto; height: 46px; padding: 9px 12px;"
+        >
+          <div data-testid="app-shell-header-context-menu-surface">
+            <span class="text-token-foreground" data-host-titlebar-thread-label>切换到 BigPizzaV3 方案</span>
+            <button type="button" data-codex-plus-trigger-installed="5">
+              <span data-codex-plus-trigger-label="true">Codex++ 1.2.41</span>
+            </button>
+          </div>
+        </header>
         <div data-token-remaining="99840" data-token-limit="128000" aria-label="Token remaining 99840 / 128000"></div>
         <div data-host-conversation-transcript>
           <section>
@@ -433,7 +457,16 @@
         </div>
         <div data-pip-obstacle="thread-footer">
           <div data-host-plan-pill>Step 1 / 4 · 10 files changed · +244 −373</div>
-          <div data-host-queued-message>Queued message · Steer · More actions</div>
+          <div data-host-queued-message>
+            <div data-host-queued-row>
+              <span>Queued message · first instruction</span>
+              <button type="button" aria-label="Steer">Steer</button>
+            </div>
+            <div data-host-queued-row>
+              <span>Queued message · second instruction</span>
+              <button type="button" aria-label="Steer">Steer</button>
+            </div>
+          </div>
           <div data-host-composer-shell>
             <form data-testid="composer">
               <textarea placeholder="Ask anything" aria-label="Mission composer"></textarea>

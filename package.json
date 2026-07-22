@@ -1,13 +1,16 @@
 {
   "name": "demon-slayer-codex-theme",
-  "version": "0.5.20",
+  "version": "0.5.21",
   "private": true,
   "type": "commonjs",
   "scripts": {
+    "optimize:assets": "node scripts/optimize-assets.mjs",
     "build": "node scripts/build.mjs",
     "check": "node scripts/check.mjs",
     "check:install": "sh -n install.sh",
-    "runtime-qa": "node scripts/runtime-qa.cjs"
+    "runtime-qa": "node scripts/runtime-qa.cjs",
+    "runtime-qa:bigpizza": "node scripts/bigpizza-runtime-qa.cjs",
+    "runtime-qa:performance": "node scripts/performance-qa.cjs"
   },
   "devDependencies": {
     "playwright": "^1.61.1"

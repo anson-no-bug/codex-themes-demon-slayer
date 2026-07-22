@@ -13,6 +13,7 @@ const ROOT_DIFFICULTY_ATTR = "data-kisatsutai-difficulty";
 const STYLE_ID = "kisatsutai-mission-theme-style";
 const STRIP_ID = "kisatsutai-mission-strip";
 const SESSION_COUNT_STORAGE_KEY = "session-squad-counts-v1";
+const SESSION_LOCATION_STORAGE_KEY = "session-location-overrides-v1";
 const DEFAULTS = Object.freeze({
   enabled: true,
   narrative: true,
@@ -20,6 +21,70 @@ const DEFAULTS = Object.freeze({
   breathing: "water",
   density: "immersive",
 });
+const OBSERVER_OPTIONS = Object.freeze({
+  childList: true,
+  subtree: true,
+  attributes: true,
+  attributeFilter: Object.freeze([
+    "aria-label",
+    "aria-disabled",
+    "aria-valuenow",
+    "aria-valuemax",
+    "aria-valuetext",
+    "title",
+    "type",
+    "disabled",
+    "placeholder",
+    "href",
+    "aria-current",
+    "data-state",
+    "data-app-action-sidebar-thread-active",
+    "data-app-action-sidebar-thread-id",
+    "data-thread-id",
+    "data-conversation-id",
+    "data-token-remaining",
+    "data-token-used",
+    "data-token-limit",
+    "data-token-total",
+    "data-context-limit",
+    "data-codexpp-settings-surface",
+  ]),
+});
+const MAX_SESSION_STATES = 160;
+const SLASH_EFFECT_DEDUPE_MS = 140;
+const THEME_MARK_KEYS = Object.freeze([
+  "kisatsutaiComposer",
+  "kisatsutaiComposerShell",
+  "kisatsutaiComposerFooter",
+  "kisatsutaiComposerFooterBackdrop",
+  "kisatsutaiQueuedPanel",
+  "kisatsutaiTask",
+  "kisatsutaiAction",
+  "kisatsutaiNewTaskVariant",
+  "kisatsutaiProjectAction",
+  "kisatsutaiProjectRow",
+  "kisatsutaiProjectState",
+  "kisatsutaiSendState",
+  "kisatsutaiTool",
+  "kisatsutaiCopy",
+  "kisatsutaiPlaceholder",
+  "kisatsutaiSquadCount",
+  "kisatsutaiNativeRail",
+  "kisatsutaiSession",
+  "kisatsutaiMissionSurface",
+  "kisatsutaiMissionFrame",
+  "kisatsutaiDifficulty",
+  "kisatsutaiLocation",
+  "kisatsutaiLocationLabel",
+  "kisatsutaiAtmosphereLocation",
+  "kisatsutaiLocationControl",
+  "kisatsutaiSidebar",
+  "kisatsutaiSummaryPanel",
+  "kisatsutaiSummarySection",
+  "kisatsutaiSummaryNativeSquad",
+  "kisatsutaiNativeTaskControl",
+  "kisatsutaiNativeTaskControlShell",
+]);
 const BREATHING_OPTIONS = Object.freeze([
   { id: "random", short: "随", label: "随机呼吸" },
   { id: "water", short: "水", label: "水之呼吸" },
@@ -90,13 +155,6 @@ const LOCATION_ROSTER = Object.freeze([
     sidebarPosition: "42% 50%",
   },
   {
-    id: "swordsmith-village",
-    name: "刀匠村 · 云上工坊",
-    region: "隐世山谷",
-    position: "50% 44%",
-    sidebarPosition: "64% 50%",
-  },
-  {
     id: "hashira-training",
     name: "柱稽古场 · 瀑布修行",
     region: "山奥",
@@ -116,6 +174,76 @@ const LOCATION_ROSTER = Object.freeze([
     region: "北境山地",
     position: "58% 42%",
     sidebarPosition: "68% 50%",
+  },
+  {
+    id: "snowbound-shrine",
+    name: "雪岭神社 · 冬夜结界",
+    region: "北境雪岭",
+    position: "52% 48%",
+    sidebarPosition: "69% 50%",
+  },
+  {
+    id: "bamboo-moon-path",
+    name: "竹月古道 · 风鸣林",
+    region: "山阴古道",
+    position: "50% 48%",
+    sidebarPosition: "57% 50%",
+  },
+  {
+    id: "riverside-post-town",
+    name: "川雾宿场 · 灯火渡口",
+    region: "东海道",
+    position: "50% 52%",
+    sidebarPosition: "66% 50%",
+  },
+  {
+    id: "hashira-assembly",
+    name: "柱合会议 · 柱众集结",
+    region: "鬼杀队本部",
+    position: "50% 46%",
+    sidebarPosition: "50% 46%",
+  },
+  {
+    id: "hashira-night-watch",
+    name: "柱合会议 · 决战前夜",
+    region: "鬼杀队本部",
+    position: "50% 48%",
+    sidebarPosition: "50% 48%",
+  },
+  {
+    id: "rengoku-blaze",
+    name: "无限列车 · 炎柱先阵",
+    region: "夜行列车",
+    position: "50% 47%",
+    sidebarPosition: "50% 47%",
+  },
+  {
+    id: "mugen-train-rendezvous",
+    name: "无限列车 · 车厢会师",
+    region: "夜行列车",
+    position: "50% 47%",
+    sidebarPosition: "50% 47%",
+  },
+  {
+    id: "swordsmith-alliance",
+    name: "刀匠村 · 锻刀共战",
+    region: "隐世山谷",
+    position: "50% 47%",
+    sidebarPosition: "50% 47%",
+  },
+  {
+    id: "corps-march",
+    name: "柱稽古 · 鬼杀队集结",
+    region: "决战前线",
+    position: "50% 48%",
+    sidebarPosition: "50% 48%",
+  },
+  {
+    id: "entertainment-squad",
+    name: "吉原游郭 · 联合作战",
+    region: "东京府",
+    position: "50% 47%",
+    sidebarPosition: "50% 47%",
   },
 ]);
 const LOCATION_BY_ID = new Map(LOCATION_ROSTER.map((location) => [location.id, location]));
@@ -266,7 +394,7 @@ const THEME_ASSET_BINDINGS = Object.freeze([
     assetId: character.id,
     property: `--ki-character-${character.id}`,
   })),
-  { assetId: "muzan", property: "--ki-character-muzan" },
+  { assetId: "muzan-cutout", property: "--ki-character-muzan" },
   ...OPPONENT_ROSTER.map((opponent) => ({
     assetId: `opponent-${opponent.id}`,
     property: `--ki-opponent-${opponent.id}`,
@@ -289,6 +417,7 @@ const DISPLAY_COPY = new Map([
   ["新对话", "接取讨伐"],
   ["outputs", "任务案卷"],
   ["artifacts", "任务案卷"],
+  ["environment", "任务案卷"],
   ["sources", "渡鸦情报"],
   ["鎹鸦情报", "渡鸦情报"],
   ["subagents", "出战小队"],
@@ -374,6 +503,7 @@ let styleElement = null;
 let settingsHandle = null;
 let scheduledFrame = 0;
 let navHandler = null;
+let resizeHandler = null;
 let missionStrip = null;
 let textPatches = [];
 let attributePatches = [];
@@ -388,8 +518,42 @@ let sendActionHandlers = new Map();
 let composerKeyHandlers = new Map();
 let breathingControlHandlers = new Map();
 let slashTimers = new Set();
+let activeSlashEffect = null;
+let activeSlashTimer = 0;
+let lastSlashEffectAt = -Infinity;
 let resolvedRandomBreathing = DEFAULTS.breathing;
 let ravenStatus = null;
+let assetsApplied = false;
+
+function setAttributeIfChanged(element, name, value) {
+  if (!(element instanceof Element)) return;
+  const next = String(value);
+  if (element.getAttribute(name) !== next) element.setAttribute(name, next);
+}
+
+function setDatasetIfChanged(element, key, value) {
+  if (!(element instanceof HTMLElement)) return;
+  const next = String(value);
+  if (element.dataset[key] !== next) element.dataset[key] = next;
+}
+
+function setStylePropertyIfChanged(element, name, value) {
+  if (!(element instanceof HTMLElement)) return;
+  const next = String(value);
+  if (element.style.getPropertyValue(name) !== next) element.style.setProperty(name, next);
+}
+
+function clearMarkedElement(element) {
+  if (!(element instanceof HTMLElement)) return;
+  for (const key of THEME_MARK_KEYS) delete element.dataset[key];
+  for (const property of [
+    "--ki-mission-background",
+    "--ki-mission-position",
+    "--ki-context-location",
+    "--ki-context-position",
+    "--ki-native-trailing-rail",
+  ]) element.style.removeProperty(property);
+}
 
 function normalizeText(value) {
   return String(value || "")
@@ -484,6 +648,12 @@ function ensureSessionState(key) {
   const existing = sessionStates.get(stableKey);
   if (existing) return existing;
 
+  while (sessionStates.size >= MAX_SESSION_STATES) {
+    const oldestKey = sessionStates.keys().next().value;
+    if (oldestKey === undefined) break;
+    sessionStates.delete(oldestKey);
+  }
+
   const seed = hashString(`${stableKey}:kisatsutai`);
   const core = seededShuffle(CORE_CHARACTER_IDS, seed ^ 0x4b1d5a77);
   const support = seededShuffle(
@@ -503,11 +673,15 @@ function ensureSessionState(key) {
   const location = LOCATION_ROSTER[hashString(`${stableKey}:location`) % LOCATION_ROSTER.length];
   const mission = MISSION_ROSTER[hashString(`${stableKey}:mission`) % MISSION_ROSTER.length];
   const storedCounts = apiRef?.storage?.get?.(SESSION_COUNT_STORAGE_KEY, {}) || {};
+  const storedLocations = apiRef?.storage?.get?.(SESSION_LOCATION_STORAGE_KEY, {}) || {};
   const storedCount = clampSquadCount(storedCounts[stableKey]);
+  const storedLocationId = LOCATION_BY_ID.has(storedLocations[stableKey])
+    ? storedLocations[stableKey]
+    : location.id;
   const state = {
     key: stableKey,
     seed,
-    locationId: location.id,
+    locationId: storedLocationId,
     missionId: mission.id,
     squadOrder,
     observedSquadCount: storedCount || 1,
@@ -515,6 +689,30 @@ function ensureSessionState(key) {
   };
   sessionStates.set(stableKey, state);
   return state;
+}
+
+function rememberSessionLocation(state, locationId) {
+  if (!state || !LOCATION_BY_ID.has(locationId) || state.locationId === locationId) return;
+  state.locationId = locationId;
+  const existing = apiRef?.storage?.get?.(SESSION_LOCATION_STORAGE_KEY, {}) || {};
+  const next = { ...existing, [state.key]: locationId };
+  const entries = Object.entries(next);
+  const bounded = entries.length > 160
+    ? Object.fromEntries(entries.slice(entries.length - 160))
+    : next;
+  apiRef?.storage?.set?.(SESSION_LOCATION_STORAGE_KEY, bounded);
+}
+
+function cycleSessionLocation(state) {
+  if (!state) return null;
+  const order = seededShuffle(
+    LOCATION_ROSTER.map((location) => location.id),
+    state.seed ^ 0x71c6a4d9,
+  );
+  const currentIndex = order.indexOf(state.locationId);
+  const nextId = order[(currentIndex + 1 + order.length) % order.length] || order[0];
+  rememberSessionLocation(state, nextId);
+  return LOCATION_BY_ID.get(nextId) || null;
 }
 
 function rememberSquadCount(state, count) {
@@ -690,11 +888,11 @@ function measureNativeTrailingRail(task) {
   }
   const measured = width > 0 ? Math.ceil(Math.min(width, 120)) : 0;
   if (measured > 0) {
-    task.style.setProperty("--ki-native-trailing-rail", `${measured}px`);
-    task.dataset.kisatsutaiNativeRail = "true";
+    setStylePropertyIfChanged(task, "--ki-native-trailing-rail", `${measured}px`);
+    setDatasetIfChanged(task, "kisatsutaiNativeRail", "true");
   } else {
     task.style.removeProperty("--ki-native-trailing-rail");
-    task.dataset.kisatsutaiNativeRail = "false";
+    setDatasetIfChanged(task, "kisatsutaiNativeRail", "false");
   }
   return measured;
 }
@@ -717,23 +915,30 @@ function syncTaskSquad(task) {
     task.appendChild(squad);
     injectedNodes.add(squad);
   }
-  task.dataset.kisatsutaiSquadCount = String(Math.min(count, 4));
-  task.dataset.kisatsutaiSession = key;
+  setDatasetIfChanged(task, "kisatsutaiSquadCount", Math.min(count, 4));
+  setDatasetIfChanged(task, "kisatsutaiSession", key);
   measureNativeTrailingRail(task);
   renderAvatarStack(squad, characters, count);
 }
 
 function applyCharacterAssets() {
+  if (assetsApplied) return;
   const root = document.documentElement;
   for (const binding of THEME_ASSET_BINDINGS) {
     const asset = CHARACTER_ASSETS[binding.assetId];
     if (asset) root.style.setProperty(binding.property, `url("${asset}")`);
   }
+  assetsApplied = true;
 }
 
 function clearCharacterAssets() {
   const root = document.documentElement;
-  for (const property of THEME_CSS_VARS) root.style.removeProperty(property);
+  if (assetsApplied) {
+    for (const property of THEME_CSS_VARS) root.style.removeProperty(property);
+    assetsApplied = false;
+  }
+  root.style.removeProperty("--ki-shared-scene");
+  root.style.removeProperty("--ki-shared-scene-position");
 }
 
 function getPreferences(api) {
@@ -854,11 +1059,11 @@ function applyNativeSurfaceState() {
 
 function applyMissionSurfaceState() {
   const root = document.documentElement;
-  root.setAttribute(ROOT_SURFACE_ATTR, "mission");
-  root.setAttribute(ROOT_THEME_ATTR, getActiveBreathing());
-  root.setAttribute(ROOT_BREATHING_MODE_ATTR, preferences.breathing);
-  root.setAttribute(ROOT_MOTION_ATTR, preferences.motion ? "on" : "off");
-  root.setAttribute(ROOT_DENSITY_ATTR, preferences.density);
+  setAttributeIfChanged(root, ROOT_SURFACE_ATTR, "mission");
+  setAttributeIfChanged(root, ROOT_THEME_ATTR, getActiveBreathing());
+  setAttributeIfChanged(root, ROOT_BREATHING_MODE_ATTR, preferences.breathing);
+  setAttributeIfChanged(root, ROOT_MOTION_ATTR, preferences.motion ? "on" : "off");
+  setAttributeIfChanged(root, ROOT_DENSITY_ATTR, preferences.density);
   applyCharacterAssets();
 }
 
@@ -905,12 +1110,59 @@ function schedulePatch() {
   if (scheduledFrame || !preferences.enabled) return;
   scheduledFrame = requestAnimationFrame(() => {
     scheduledFrame = 0;
+    const activeObserver = observer;
+    activeObserver?.disconnect();
     try {
+      pruneDetachedRuntimeReferences();
       patchDom();
     } catch (error) {
       apiRef?.log.warn("theme patch skipped", String(error));
+    } finally {
+      if (activeObserver && observer === activeObserver) {
+        activeObserver.takeRecords();
+        activeObserver.observe(document.documentElement, OBSERVER_OPTIONS);
+      }
     }
   });
+}
+
+function pruneDetachedRuntimeReferences() {
+  for (const [button, binding] of sendActionHandlers) {
+    if (button?.isConnected) continue;
+    button?.removeEventListener?.("click", binding.handler);
+    if (button instanceof HTMLElement) {
+      if (binding.originalTitle === null) button.removeAttribute("title");
+      else button.setAttribute("title", binding.originalTitle);
+      const control = button.querySelector(".kisatsutai-nichirin-control");
+      control?.remove();
+      injectedNodes.delete(control);
+      clearMarkedElement(button);
+      markedElements.delete(button);
+    }
+    sendActionHandlers.delete(button);
+  }
+  for (const [editor, handler] of composerKeyHandlers) {
+    if (editor?.isConnected) continue;
+    editor?.removeEventListener?.("keydown", handler, true);
+    composerKeyHandlers.delete(editor);
+  }
+  for (const [button, handler] of breathingControlHandlers) {
+    if (button?.isConnected) continue;
+    button?.removeEventListener?.("click", handler);
+    breathingControlHandlers.delete(button);
+  }
+  for (const node of injectedNodes) {
+    if (node?.isConnected) continue;
+    node?.remove?.();
+    injectedNodes.delete(node);
+  }
+  for (const element of markedElements) {
+    if (element?.isConnected) continue;
+    clearMarkedElement(element);
+    markedElements.delete(element);
+  }
+  textPatches = textPatches.filter((patch) => patch.node?.isConnected);
+  attributePatches = attributePatches.filter((patch) => patch.element?.isConnected);
 }
 
 function patchDom() {
@@ -1092,6 +1344,51 @@ function decorateComposerShells(composer) {
       layer.dataset.kisatsutaiComposerFooterBackdrop = "true";
       markedElements.add(layer);
     }
+
+    if (footerContent instanceof HTMLElement) {
+      const composerWidth = composerRect.width;
+      const steerControls = Array.from(footerContent.querySelectorAll("button")).filter((button) => {
+        const label = normalizeText([
+          button.textContent,
+          button.getAttribute("aria-label"),
+          button.getAttribute("title"),
+        ].filter(Boolean).join(" "));
+        return /(^|\s)(steer|引导|插入|调整队列)(\s|$)/i.test(label);
+      });
+      for (const control of steerControls) {
+        let panel = control.parentElement;
+        while (panel && panel !== footerContent) {
+          if (panel.contains(composer)) break;
+          const rect = panel.getBoundingClientRect();
+          const style = getComputedStyle(panel);
+          const hasVisibleBorder = [
+            style.borderTopWidth,
+            style.borderRightWidth,
+            style.borderLeftWidth,
+          ].some((width) => parseFloat(width) > 0);
+          const hasVisibleBackground = ![
+            "transparent",
+            "rgba(0, 0, 0, 0)",
+          ].includes(style.backgroundColor);
+          const isComposerWidth = rect.width >= composerWidth * 0.72
+            && rect.width <= composerWidth + 48;
+          const isQueueHeight = rect.height >= 24
+            && rect.height <= Math.max(360, window.innerHeight * 0.35);
+          const containsQueueActions = steerControls.every((candidate) => panel.contains(candidate));
+          if (
+            containsQueueActions
+            && isComposerWidth
+            && isQueueHeight
+            && (hasVisibleBorder || hasVisibleBackground)
+          ) {
+            panel.dataset.kisatsutaiQueuedPanel = "true";
+            markedElements.add(panel);
+            break;
+          }
+          panel = panel.parentElement;
+        }
+      }
+    }
   }
 
   let shell = composer.parentElement;
@@ -1131,11 +1428,34 @@ function decorateMissionSurface(composer = findComposer()) {
     surface.dataset.kisatsutaiMissionSurface = "true";
     markedElements.add(surface);
   }
+
+  const frame = surface.parentElement?.closest("main, [role='main']");
+  if (frame instanceof HTMLElement && frame !== surface) {
+    frame.dataset.kisatsutaiMissionFrame = "true";
+    markedElements.add(frame);
+  }
   return surface;
+}
+
+function removeActiveSlashEffect() {
+  if (activeSlashTimer) {
+    window.clearTimeout(activeSlashTimer);
+    slashTimers.delete(activeSlashTimer);
+    activeSlashTimer = 0;
+  }
+  if (activeSlashEffect) {
+    activeSlashEffect.remove();
+    injectedNodes.delete(activeSlashEffect);
+    activeSlashEffect = null;
+  }
 }
 
 function createNichirinEffect(button, action = "send") {
   if (!preferences.enabled || !preferences.motion || !(button instanceof HTMLElement)) return;
+  const now = performance.now();
+  if (now - lastSlashEffectAt < SLASH_EFFECT_DEDUPE_MS) return;
+  lastSlashEffectAt = now;
+  removeActiveSlashEffect();
   const activeBreathing = getActiveBreathing();
   const bounds = button.getBoundingClientRect();
   const effect = document.createElement("span");
@@ -1198,11 +1518,15 @@ function createNichirinEffect(button, action = "send") {
   ].join("");
   document.body.appendChild(effect);
   injectedNodes.add(effect);
+  activeSlashEffect = effect;
   const timer = window.setTimeout(() => {
     effect.remove();
     injectedNodes.delete(effect);
     slashTimers.delete(timer);
+    if (activeSlashEffect === effect) activeSlashEffect = null;
+    if (activeSlashTimer === timer) activeSlashTimer = 0;
   }, 900);
+  activeSlashTimer = timer;
   slashTimers.add(timer);
 }
 
@@ -1259,15 +1583,15 @@ function ensureSendButton(button) {
     const handler = () => {
       if (button.disabled || button.getAttribute("aria-disabled") === "true") return;
       const action = getSendButtonState(button);
-      button.dataset.kisatsutaiSendState = action;
+      setDatasetIfChanged(button, "kisatsutaiSendState", action);
       createNichirinEffect(button, action);
     };
     button.addEventListener("click", handler);
     sendActionHandlers.set(button, { handler, originalTitle });
   }
   const state = getSendButtonState(button);
-  button.dataset.kisatsutaiAction = "send";
-  button.dataset.kisatsutaiSendState = state;
+  setDatasetIfChanged(button, "kisatsutaiAction", "send");
+  setDatasetIfChanged(button, "kisatsutaiSendState", state);
 }
 
 function ensureComposerBreathingDock(composer, sendButton) {
@@ -1433,11 +1757,11 @@ function decorateSidebarProjects() {
 
     sidebar.dataset.kisatsutaiSidebar = "true";
     projectRow.dataset.kisatsutaiProjectRow = "true";
-    projectRow.dataset.kisatsutaiProjectState = (
+    setDatasetIfChanged(projectRow, "kisatsutaiProjectState", (
       projectRow.getAttribute("aria-disabled") === "true"
         ? "unavailable"
         : "ready"
-    );
+    ));
     markedElements.add(sidebar);
     markedElements.add(projectRow);
   }
@@ -1567,6 +1891,11 @@ function patchSummaryHeading(section, key) {
       mark: "卷",
       aliases: /^(outputs?|artifacts?|任务案卷|输出|产物)$/i,
     },
+    environment: {
+      title: "任务案卷",
+      mark: "卷",
+      aliases: /^(environment|任务案卷|任务地点|环境)$/i,
+    },
     "tool-sources": {
       title: "渡鸦情报",
       mark: "情",
@@ -1637,6 +1966,7 @@ function syncLocationDossier(
   locationData,
   missionData,
   squadCount,
+  sessionKey,
 ) {
   if (!panel || !locationData) return;
   const host = hostSection || environmentSection || panel;
@@ -1653,10 +1983,42 @@ function syncLocationDossier(
       '<b class="kisatsutai-location-dossier-name"></b>',
       '<em class="kisatsutai-location-dossier-route"></em>',
       "</span>",
+      '<span class="kisatsutai-location-dossier-actions">',
       '<span class="kisatsutai-location-dossier-party"></span>',
+      '<button class="kisatsutai-location-switch" type="button">',
+      '<svg viewBox="0 0 16 16" fill="none" aria-hidden="true">',
+      '<path d="M3.2 5.3h7.9l-1.8-1.8M12.8 10.7H4.9l1.8 1.8"/>',
+      '<path d="m11.1 3.5 1.7 1.8-1.7 1.8M4.9 12.5l-1.7-1.8 1.7-1.8"/>',
+      "</svg>",
+      '<span>换景</span>',
+      "</button>",
+      "</span>",
+      '<span class="kisatsutai-visually-hidden kisatsutai-location-switch-status" role="status" aria-live="polite" aria-atomic="true"></span>',
     ].join("");
+    const switchButton = dossier.querySelector(".kisatsutai-location-switch");
+    switchButton?.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const activeState = getActiveSessionContext().state;
+      const nextLocation = cycleSessionLocation(activeState);
+      if (!nextLocation || !(switchButton instanceof HTMLButtonElement)) return;
+      switchButton.dataset.state = "changed";
+      const status = dossier.querySelector(".kisatsutai-location-switch-status");
+      setTextIfChanged(status, `当前任务背景已切换为${nextLocation.name}`);
+      schedulePatch();
+      const timer = window.setTimeout(() => {
+        switchButton.removeAttribute("data-state");
+        slashTimers.delete(timer);
+      }, 480);
+      slashTimers.add(timer);
+    });
     injectedNodes.add(dossier);
   }
+
+  if (dossier.dataset.session && dossier.dataset.session !== sessionKey) {
+    dossier.querySelector(".kisatsutai-location-switch")?.removeAttribute("data-state");
+    setTextIfChanged(dossier.querySelector(".kisatsutai-location-switch-status"), "");
+  }
+  setDatasetIfChanged(dossier, "session", sessionKey);
 
   if (hostSection || environmentSection) {
     const header = host.querySelector(":scope > header") || host.firstElementChild;
@@ -1669,13 +2031,23 @@ function syncLocationDossier(
     host.prepend(dossier);
   }
 
-  dossier.dataset.location = locationData.id;
-  dossier.style.setProperty("--ki-dossier-location", `var(--ki-location-${locationData.id})`);
+  setDatasetIfChanged(dossier, "location", locationData.id);
+  setStylePropertyIfChanged(
+    dossier,
+    "--ki-dossier-location",
+    `var(--ki-location-${locationData.id})`,
+  );
   setTextIfChanged(
     dossier.querySelector(".kisatsutai-location-dossier-type"),
     missionData ? `${missionData.name} / MISSION` : "任务地点 / MISSION AREA",
   );
   setTextIfChanged(dossier.querySelector(".kisatsutai-location-dossier-name"), locationData.name);
+  const switchButton = dossier.querySelector(".kisatsutai-location-switch");
+  if (switchButton instanceof HTMLButtonElement) {
+    const label = `更换当前任务背景，当前为${locationData.name}`;
+    setAttributeIfChanged(switchButton, "aria-label", label);
+    setAttributeIfChanged(switchButton, "title", label);
+  }
   setTextIfChanged(
     dossier.querySelector(".kisatsutai-location-dossier-party"),
     `${String(squadCount).padStart(2, "0")} 人编成`,
@@ -1694,7 +2066,7 @@ function syncLocationDossier(
       branchNode = walker.nextNode();
     }
     branch = branchParts.join(" ").replace(/\s+/g, " ").trim();
-    branchControl.dataset.kisatsutaiLocationControl = "true";
+    setDatasetIfChanged(branchControl, "kisatsutaiLocationControl", "true");
     markedElements.add(branchControl);
     if (!branchControl.querySelector(".kisatsutai-summary-location-mark")) {
       const mark = document.createElement("span");
@@ -1710,7 +2082,8 @@ function syncLocationDossier(
     dossier.querySelector(".kisatsutai-location-dossier-route"),
     branch ? `${locationData.region} · ${branch}` : locationData.region,
   );
-  dossier.setAttribute(
+  setAttributeIfChanged(
+    dossier,
     "aria-label",
     `任务地点 ${locationData.name}，${squadCount} 人编成`,
   );
@@ -1787,12 +2160,12 @@ function syncSummarySquadInteractions(section, card) {
     avatar.removeAttribute("tabindex");
   });
 
-  card.dataset.kisatsutaiHasNativeAgents = targets.length ? "true" : "false";
+  setDatasetIfChanged(card, "kisatsutaiHasNativeAgents", targets.length ? "true" : "false");
   if (targets.length) {
-    card.setAttribute("role", "button");
-    card.setAttribute("tabindex", "0");
-    card.setAttribute("aria-label", "打开出战小队 Agent");
-    card.title = "查看出战小队 Agent";
+    setAttributeIfChanged(card, "role", "button");
+    setAttributeIfChanged(card, "tabindex", "0");
+    setAttributeIfChanged(card, "aria-label", "打开出战小队 Agent");
+    setAttributeIfChanged(card, "title", "查看出战小队 Agent");
   } else {
     card.setAttribute("role", "group");
     card.removeAttribute("tabindex");
@@ -1859,20 +2232,20 @@ function syncSummarySquad(section, state, squadCount) {
       .filter(Boolean)
       .join(" / "),
   );
-  card.dataset.count = String(Math.min(squadCount, 4));
+  setDatasetIfChanged(card, "count", Math.min(squadCount, 4));
 }
 
 function decorateSummaryPanel(state, squadCount) {
   const panel = getSummaryPanel();
   if (!panel || !state) return;
-  panel.dataset.kisatsutaiSummaryPanel = "true";
+  setDatasetIfChanged(panel, "kisatsutaiSummaryPanel", "true");
   markedElements.add(panel);
   const sections = getSummarySections(panel);
   let artifactsSection = null;
   let environmentSection = null;
   let squadSection = null;
   for (const { section, key } of sections) {
-    section.dataset.kisatsutaiSummarySection = key;
+    setDatasetIfChanged(section, "kisatsutaiSummarySection", key);
     markedElements.add(section);
     patchSummaryHeading(section, key);
     if (key === "artifacts") artifactsSection = section;
@@ -1886,6 +2259,7 @@ function decorateSummaryPanel(state, squadCount) {
     LOCATION_BY_ID.get(state.locationId),
     MISSION_BY_ID.get(state.missionId),
     squadCount,
+    state.key,
   );
   syncSummarySquad(squadSection, state, squadCount);
 }
@@ -1989,12 +2363,13 @@ function bindBreathingControls(strip) {
       breathingControlHandlers.set(button, handler);
     }
     const active = preferences.breathing === breathing;
-    button.dataset.active = active ? "true" : "false";
-    button.setAttribute("aria-pressed", String(active));
+    setDatasetIfChanged(button, "active", active ? "true" : "false");
+    setAttributeIfChanged(button, "aria-pressed", active);
     if (breathing === "random") {
       const resolved = BREATHING_OPTIONS.find((option) => option.id === resolvedRandomBreathing);
-      button.title = `随机呼吸 · 当前${resolved?.label || "呼吸法"}`;
-      button.setAttribute("aria-label", button.title);
+      const label = `随机呼吸 · 当前${resolved?.label || "呼吸法"}`;
+      setAttributeIfChanged(button, "title", label);
+      setAttributeIfChanged(button, "aria-label", label);
     }
   }
 }
@@ -2004,8 +2379,15 @@ function mountMissionStrip(strip) {
   const mount = document.querySelector("[data-app-shell-main-content-layout]");
   if (mount instanceof HTMLElement) {
     if (strip.parentElement !== mount) mount.prepend(strip);
+    const mountRect = mount.getBoundingClientRect();
+    setDatasetIfChanged(
+      strip,
+      "kisatsutaiToolbarClearance",
+      mountRect.top < 0 && mountRect.width <= 1100,
+    );
     return;
   }
+  delete strip.dataset.kisatsutaiToolbarClearance;
   if (strip.parentElement !== document.body) document.body.appendChild(strip);
 }
 
@@ -2017,7 +2399,7 @@ function ensureRavenStatus() {
     ? taskSidebar
     : document.querySelector('aside[data-kisatsutai-sidebar="true"]');
   if (!(sidebar instanceof HTMLElement)) return null;
-  sidebar.dataset.kisatsutaiSidebar = "true";
+  setDatasetIfChanged(sidebar, "kisatsutaiSidebar", "true");
   markedElements.add(sidebar);
   ravenStatus = document.createElement("div");
   ravenStatus.className = "kisatsutai-raven-status";
@@ -2057,7 +2439,7 @@ function updateRavenStatus(state) {
     returned: ["渡鸦在线", "战报同步完成"],
     blocked: ["渡鸦在线", "等待重新派遣"],
   }[state] || ["渡鸦在线", "本地任务记录已同步"];
-  status.dataset.state = state;
+  setDatasetIfChanged(status, "state", state);
   setTextIfChanged(status.querySelector("b"), copy[0]);
   setTextIfChanged(status.querySelector("small"), copy[1]);
 }
@@ -2238,9 +2620,9 @@ function updateDifficultyAndOpponent(strip, signal, activeTask, state) {
     root.removeAttribute(ROOT_DIFFICULTY_ATTR);
     if (activeTask) delete activeTask.dataset.kisatsutaiDifficulty;
     opponentCard?.removeAttribute("data-opponent");
-    if (opponentCard) opponentCard.dataset.state = "unknown";
+    if (opponentCard) setDatasetIfChanged(opponentCard, "state", "unknown");
     setTextIfChanged(rankBadge, "—");
-    if (rankBadge) rankBadge.setAttribute("aria-label", "任务等级待定");
+    if (rankBadge) setAttributeIfChanged(rankBadge, "aria-label", "任务等级待定");
     setTextIfChanged(opponentCard?.querySelector(".kisatsutai-opponent-rank"), "当前对手 / 待锁定");
     setTextIfChanged(opponentCard?.querySelector(".kisatsutai-opponent-name"), "鬼迹未明");
     setTextIfChanged(
@@ -2254,10 +2636,10 @@ function updateDifficultyAndOpponent(strip, signal, activeTask, state) {
 
   const opponent = getAssignedOpponent(state, tier);
   if (!opponent) return null;
-  root.setAttribute(ROOT_DIFFICULTY_ATTR, tier.id);
-  if (activeTask) activeTask.dataset.kisatsutaiDifficulty = tier.id;
-  opponentCard.dataset.state = "known";
-  opponentCard.dataset.opponent = opponent.id;
+  setAttributeIfChanged(root, ROOT_DIFFICULTY_ATTR, tier.id);
+  if (activeTask) setDatasetIfChanged(activeTask, "kisatsutaiDifficulty", tier.id);
+  setDatasetIfChanged(opponentCard, "state", "known");
+  setDatasetIfChanged(opponentCard, "opponent", opponent.id);
   setTextIfChanged(
     opponentCard.querySelector(".kisatsutai-opponent-rank"),
     `${opponent.rank} / ${tier.label}`,
@@ -2267,8 +2649,9 @@ function updateDifficultyAndOpponent(strip, signal, activeTask, state) {
   setTextIfChanged(opponentCard.querySelector(".kisatsutai-difficulty-grade"), tier.grade);
   setTextIfChanged(opponentCard.querySelector(".kisatsutai-difficulty-label"), tier.label);
   setTextIfChanged(rankBadge, tier.grade);
-  if (rankBadge) rankBadge.setAttribute("aria-label", `任务等级 ${tier.grade}，${tier.label}`);
-  opponentCard.setAttribute(
+  if (rankBadge) setAttributeIfChanged(rankBadge, "aria-label", `任务等级 ${tier.grade}，${tier.label}`);
+  setAttributeIfChanged(
+    opponentCard,
     "aria-label",
     `当前对手 ${opponent.name}，${opponent.rank}，${tier.label}`,
   );
@@ -2296,35 +2679,30 @@ function updateMissionState() {
   const locationData = LOCATION_BY_ID.get(sessionState.locationId) || LOCATION_ROSTER[0];
   const missionData = MISSION_BY_ID.get(sessionState.missionId) || MISSION_ROSTER[0];
   const locationImage = `var(--ki-location-${locationData.id})`;
+  setStylePropertyIfChanged(document.documentElement, "--ki-shared-scene", locationImage);
+  setStylePropertyIfChanged(
+    document.documentElement,
+    "--ki-shared-scene-position",
+    locationData.position,
+  );
   if (composer instanceof HTMLElement) {
-    composer.dataset.kisatsutaiLocationLabel = `任务地点 · ${locationData.name}`;
+    setDatasetIfChanged(composer, "kisatsutaiLocationLabel", `任务地点 · ${locationData.name}`);
     markedElements.add(composer);
   }
-  strip.dataset.session = sessionState.key;
-  strip.dataset.location = locationData.id;
-  strip.dataset.mission = missionData.id;
+  setDatasetIfChanged(strip, "session", sessionState.key);
+  setDatasetIfChanged(strip, "location", locationData.id);
+  setDatasetIfChanged(strip, "mission", missionData.id);
   setTextIfChanged(strip.querySelector(".kisatsutai-strip-mission"), missionData.name);
   setTextIfChanged(strip.querySelector(".kisatsutai-strip-location"), locationData.name);
-  strip.setAttribute("aria-label", `${missionData.name}，任务地点 ${locationData.name}`);
+  setAttributeIfChanged(strip, "aria-label", `${missionData.name}，任务地点 ${locationData.name}`);
   const atmosphereTargets = [
-    {
-      element: document.querySelector('aside[data-kisatsutai-sidebar="true"]'),
-      position: locationData.position,
-    },
-    {
-      element: findComposer(),
-      position: locationData.position,
-    },
-    {
-      element: getSummaryPanel(),
-      position: locationData.position,
-    },
+    document.querySelector('aside[data-kisatsutai-sidebar="true"]'),
+    findComposer(),
+    getSummaryPanel(),
   ];
-  for (const { element: target, position } of atmosphereTargets) {
+  for (const target of atmosphereTargets) {
     if (!(target instanceof HTMLElement)) continue;
-    target.style.setProperty("--ki-context-location", locationImage);
-    target.style.setProperty("--ki-context-position", position);
-    target.dataset.kisatsutaiAtmosphereLocation = locationData.id;
+    setDatasetIfChanged(target, "kisatsutaiAtmosphereLocation", locationData.id);
     markedElements.add(target);
   }
   setTextIfChanged(
@@ -2350,41 +2728,14 @@ function updateMissionState() {
   const tokenSignal = extractTokenSignal();
   updateInvasionMeter(strip, tokenSignal);
   const opponent = updateDifficultyAndOpponent(strip, tokenSignal, activeTask, sessionState);
-  strip.querySelector(".kisatsutai-strip-duel")?.setAttribute(
+  setAttributeIfChanged(
+    strip.querySelector(".kisatsutai-strip-duel"),
     "aria-label",
     `鬼杀队 ${assignedNames.join("、") || "队员待命"} 对决 ${opponent?.name || "未知恶鬼"}`,
   );
   const surface = decorateMissionSurface();
   if (surface) {
-    const leadCharacter = assignedCharacters[0] || "tanjiro";
-    surface.style.setProperty(
-      "--ki-active-character",
-      `var(--ki-character-${leadCharacter})`,
-    );
-    assignedCharacters.slice(0, 4).forEach((id, index) => {
-      surface.style.setProperty(
-        `--ki-active-character-${index + 1}`,
-        `var(--ki-character-${id})`,
-      );
-    });
-    for (let index = assignedCharacters.length + 1; index <= 4; index += 1) {
-      surface.style.removeProperty(`--ki-active-character-${index}`);
-    }
-    surface.style.setProperty(
-      "--ki-mission-background",
-      locationImage,
-    );
-    surface.style.setProperty("--ki-mission-position", locationData.position);
-    surface.dataset.kisatsutaiLocation = locationData.id;
-    surface.dataset.kisatsutaiSquadCount = String(Math.min(squadCount, 4));
-    if (opponent) {
-      surface.style.setProperty(
-        "--ki-active-opponent",
-        `var(--ki-opponent-${opponent.id})`,
-      );
-    } else {
-      surface.style.removeProperty("--ki-active-opponent");
-    }
+    setDatasetIfChanged(surface, "kisatsutaiLocation", locationData.id);
   }
   decorateSummaryPanel(sessionState, squadCount);
   const liveText = Array.from(
@@ -2417,8 +2768,8 @@ function updateMissionState() {
     copy = "收刀 · 斩鬼归队";
   }
 
-  document.documentElement.setAttribute(ROOT_STATE_ATTR, state);
-  strip.dataset.state = state;
+  setAttributeIfChanged(document.documentElement, ROOT_STATE_ATTR, state);
+  setDatasetIfChanged(strip, "state", state);
   updateRavenStatus(state);
   const status = strip.querySelector(".kisatsutai-strip-status");
   if (status && status.textContent !== copy) status.textContent = copy;
@@ -2426,53 +2777,7 @@ function updateMissionState() {
 
 function clearMarks() {
   for (const element of markedElements) {
-    if (!element?.isConnected) continue;
-    for (const key of [
-      "kisatsutaiComposer",
-      "kisatsutaiComposerShell",
-      "kisatsutaiComposerFooter",
-      "kisatsutaiComposerFooterBackdrop",
-      "kisatsutaiTask",
-      "kisatsutaiAction",
-      "kisatsutaiNewTaskVariant",
-      "kisatsutaiProjectAction",
-      "kisatsutaiProjectRow",
-      "kisatsutaiProjectState",
-      "kisatsutaiSendState",
-      "kisatsutaiTool",
-      "kisatsutaiCopy",
-      "kisatsutaiPlaceholder",
-      "kisatsutaiSquadCount",
-      "kisatsutaiNativeRail",
-      "kisatsutaiSession",
-      "kisatsutaiMissionSurface",
-      "kisatsutaiDifficulty",
-      "kisatsutaiLocation",
-      "kisatsutaiLocationLabel",
-      "kisatsutaiAtmosphereLocation",
-      "kisatsutaiLocationControl",
-      "kisatsutaiSidebar",
-      "kisatsutaiSummaryPanel",
-      "kisatsutaiSummarySection",
-      "kisatsutaiSummaryNativeSquad",
-      "kisatsutaiNativeTaskControl",
-      "kisatsutaiNativeTaskControlShell",
-    ]) {
-      delete element.dataset[key];
-    }
-    if (element.dataset.kisatsutaiMissionSurface === undefined) {
-      element.style.removeProperty("--ki-active-character");
-      element.style.removeProperty("--ki-active-opponent");
-      element.style.removeProperty("--ki-active-character-1");
-      element.style.removeProperty("--ki-active-character-2");
-      element.style.removeProperty("--ki-active-character-3");
-      element.style.removeProperty("--ki-active-character-4");
-      element.style.removeProperty("--ki-mission-background");
-      element.style.removeProperty("--ki-mission-position");
-      element.style.removeProperty("--ki-context-location");
-      element.style.removeProperty("--ki-context-position");
-      element.style.removeProperty("--ki-native-trailing-rail");
-    }
+    clearMarkedElement(element);
   }
   markedElements.clear();
 }
@@ -2667,38 +2972,12 @@ function renderSettings(root) {
 function startObserver() {
   if (observer) return;
   observer = new MutationObserver(schedulePatch);
-  observer.observe(document.documentElement, {
-    childList: true,
-    subtree: true,
-    attributes: true,
-    attributeFilter: [
-      "aria-label",
-      "aria-disabled",
-      "aria-valuenow",
-      "aria-valuemax",
-      "aria-valuetext",
-      "title",
-      "type",
-      "disabled",
-      "placeholder",
-      "href",
-      "aria-current",
-      "data-state",
-      "data-app-action-sidebar-thread-active",
-      "data-app-action-sidebar-thread-id",
-      "data-thread-id",
-      "data-conversation-id",
-      "data-token-remaining",
-      "data-token-used",
-      "data-token-limit",
-      "data-token-total",
-      "data-context-limit",
-      "data-codexpp-settings-surface",
-    ],
-  });
+  observer.observe(document.documentElement, OBSERVER_OPTIONS);
   navHandler = schedulePatch;
   window.addEventListener("popstate", navHandler);
   window.addEventListener("hashchange", navHandler);
+  resizeHandler = schedulePatch;
+  window.addEventListener("resize", resizeHandler);
   settingsSurfaceHandler = schedulePatch;
   window.addEventListener("codexpp:settings-surface", settingsSurfaceHandler);
   navigationClickHandler = (event) => {
@@ -2733,6 +3012,8 @@ function cleanup() {
     window.removeEventListener("hashchange", navHandler);
   }
   navHandler = null;
+  if (resizeHandler) window.removeEventListener("resize", resizeHandler);
+  resizeHandler = null;
   if (settingsSurfaceHandler) {
     window.removeEventListener("codexpp:settings-surface", settingsSurfaceHandler);
   }
@@ -2757,6 +3038,7 @@ function cleanup() {
     button?.removeEventListener?.("click", handler);
   }
   breathingControlHandlers.clear();
+  removeActiveSlashEffect();
   for (const timer of slashTimers) window.clearTimeout(timer);
   slashTimers.clear();
   restoreNarrativePatches();
@@ -2780,6 +3062,7 @@ function cleanup() {
   lastActiveSessionKey = "";
   draftSessionCounter = 0;
   resolvedRandomBreathing = DEFAULTS.breathing;
+  lastSlashEffectAt = -Infinity;
   styleElement = null;
   apiRef = null;
 }

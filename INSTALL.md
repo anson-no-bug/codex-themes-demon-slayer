@@ -1,43 +1,76 @@
 # 安装“鬼杀队任务中枢”
 
-## 给 AI 的一句话
+## 安装
 
-> 请执行并检查 `curl -fsSL https://raw.githubusercontent.com/anson-no-bug/codex-themes-demon-slayer/main/install.sh | sh`；安装器会在缺少 b-nnett Codex++ 时自动补齐，并使用稳定本地签名。完成后直接重启原 Codex，确认鬼杀队主题已加载。
-
-## 一条命令安装
-
-完全退出 Codex 后执行：
+唯一前置条件是已安装并成功启动过一次官方 Codex Desktop。执行：
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/anson-no-bug/codex-themes-demon-slayer/main/install.sh | sh
 ```
 
-安装器会：
+用户不需要预装 Git、Node.js、Homebrew、ImageMagick 或 BigPizzaV3 Codex++。安装器会先检查 macOS 自带命令；缺少必要系统命令时会明确停止，不会静默跳过。
 
-1. 检查 macOS 与官方 Codex Desktop。
-2. 查找现有的 [b-nnett/codex-plusplus](https://github.com/b-nnett/codex-plusplus)。如果没有，优先通过 Homebrew 安装；没有 Homebrew 但已有 Node.js 20+ 与 npm 时，改用 b-nnett 官方源码安装器。
-3. 使用 `install --local` 或 `repair --force --local` 修改 Codex，避免 adhoc 签名与 `better-sqlite3` 的 Team ID 冲突。
-4. 使用系统自带的 `curl + tar` 下载主题，不要求预先安装 Git。
-5. 校验主题并链接到 `~/Library/Application Support/codex-plusplus/tweaks/`。
+## 安装流程
 
-如果机器既没有 Homebrew，也没有 Node.js 20+ 与 npm，安装器会停止并列出缺失项，不会静默安装系统级软件。
+安装器按顺序执行：
 
-只检查、不修改：
+1. 验证官方 Codex 的完整代码签名与 OpenAI Team ID `2DC432GLL2`。
+2. 确认旧 `com.codexplusplus.watcher` 没有加载，避免与重签名方案并存。
+3. 检查 `/Applications/Codex++.app` 和 `/Applications/Codex++ 管理工具.app` 的版本、架构、Bundle ID 与签名结构。
+4. Codex++ 缺失、过旧或损坏时，自动识别 `arm64` / `x64`，从 BigPizzaV3 官方 GitHub Release 获取对应 DMG，核对 Release SHA-256 与 DMG 结构，再以可回滚方式安装两个 App。
+5. 下载本仓库归档，验证用户脚本标记、生命周期和 `2 MiB` 上限，然后原子写入：
+
+```text
+~/.config/Codex++/user_scripts/demon-slayer-codex-theme.user.js
+```
+
+写入 `/Applications` 需要管理员权限时，密码只由 macOS `sudo` 读取。GitHub Release API 不可用时，安装器只会回退到内置且已核验哈希的 BigPizzaV3 v1.2.41，不执行无校验 DMG 安装。
+
+安装器不会修改或重签名官方 Codex，不创建官方 App 备份、LaunchAgent、本地签名证书，也不会删除 `~/Library/Application Support/Codex/`、`~/.codex/` 或任何会话数据。
+
+## 启动与检查
+
+安装后完全退出当前 Codex，再从 `/Applications/Codex++.app` 启动。直接打开官方 `ChatGPT.app` / `Codex.app` 不会加载主题，这是外部注入方案的预期行为。
+
+只读健康检查：
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/anson-no-bug/codex-themes-demon-slayer/main/install.sh | sh -s -- --check
 ```
 
-## 启动方式
+它会复核官方 Codex 签名、Codex++ 双 App 和主题脚本，不下载或修改文件。
 
-安装完成后直接打开官方 `ChatGPT.app` / `Codex.app`。b-nnett 的小型 loader 已写入 Codex 启动入口，会自动读取主题；不需要额外的 Codex++ 启动器。
+## 更新与卸载
 
-在 Settings → Codex++ → Tweaks 中确认“鬼灭之刃 · 鬼杀队任务中枢”已启用，再打开任意会话验证任务条、地点背景和呼吸法控件。
+再次执行安装命令即可更新。健康的 Codex++ 不会重复下载 DMG。强制重新安装最新版 Codex++：
 
-## 更新
+```sh
+curl -fsSL https://raw.githubusercontent.com/anson-no-bug/codex-themes-demon-slayer/main/install.sh \
+  | CODEXPLUSPLUS_FORCE_INSTALL=1 sh
+```
 
-再次执行同一条安装命令，然后直接重启 Codex。
+只删除主题脚本：
 
-## 停用
+```sh
+curl -fsSL https://raw.githubusercontent.com/anson-no-bug/codex-themes-demon-slayer/main/install.sh | sh -s -- --uninstall
+```
 
-在 Codex++ 的 Tweaks 页面停用该主题；如需排查全部 tweak，可执行 `codexplusplus safe-mode`，恢复时执行 `codexplusplus safe-mode --off`。不要删除 `~/Library/Application Support/codex-plusplus/backup/`，它用于恢复官方应用。
+完全清除 Codex++ 与主题：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/anson-no-bug/codex-themes-demon-slayer/main/install.sh | sh -s -- --purge
+```
+
+执行 `--purge` 前必须完全退出 Codex++ 与管理工具。该命令只删除：
+
+- `/Applications/Codex++.app`
+- `/Applications/Codex++ 管理工具.app`
+- `~/.config/Codex++/`
+- `~/.codex-session-delete/`
+- 已知旧 watcher、旧 `codexplusplus` CLI 链接与旧支持目录
+
+它保留官方 Codex、登录状态、会话数据库、`~/.codex/` 与项目文件。
+
+## 旧侵入方案残留
+
+普通安装发现 `com.codexplusplus.watcher` 时会停止。先确认官方 Codex 已由可信备份或官方渠道恢复，且 Team ID 为 `2DC432GLL2`；然后完全退出相关进程，执行 `--purge` 清除已知 watcher 与旧 CLI 残留，再重新安装。不要删除 Codex 自身的数据目录。

@@ -1,5 +1,6 @@
 "use strict";
 
+const { existsSync, readFileSync } = require("node:fs");
 const path = require("node:path");
 const { pathToFileURL } = require("node:url");
 
@@ -13,19 +14,92 @@ function loadPlaywright() {
   }
 }
 
+function resolveBrowserExecutable() {
+  if (process.env.CODEX_CHROMIUM_EXECUTABLE) return process.env.CODEX_CHROMIUM_EXECUTABLE;
+  return [
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+    "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+    "/Applications/Chromium.app/Contents/MacOS/Chromium",
+  ].find(existsSync);
+}
+
+async function inspectLocationSwitch(page) {
+  return page.evaluate(() => {
+    const strip = document.querySelector("#kisatsutai-mission-strip");
+    const dossier = document.querySelector(".kisatsutai-location-dossier");
+    const button = dossier?.querySelector(".kisatsutai-location-switch");
+    const style = button instanceof HTMLElement ? getComputedStyle(button) : null;
+    const dossierAfter = dossier instanceof HTMLElement ? getComputedStyle(dossier, "::after") : null;
+    return {
+      session: strip?.dataset.session || null,
+      location: strip?.dataset.location || null,
+      dossierLocation: dossier?.dataset.location || null,
+      name: dossier?.querySelector(".kisatsutai-location-dossier-name")?.textContent?.trim() || null,
+      buttonText: button?.textContent?.replace(/\s+/g, "").trim() || null,
+      ariaLabel: button?.getAttribute("aria-label") || null,
+      title: button?.getAttribute("title") || null,
+      state: button?.dataset.state || null,
+      status: dossier?.querySelector(".kisatsutai-location-switch-status")?.textContent?.trim() || null,
+      width: style?.width || null,
+      height: style?.height || null,
+      cursor: style?.cursor || null,
+      decoration: dossierAfter ? {
+        content: dossierAfter.content,
+        display: dossierAfter.display,
+        width: dossierAfter.width,
+        backgroundColor: dossierAfter.backgroundColor,
+      } : null,
+    };
+  });
+}
+
 async function inspectCore(page) {
   return page.evaluate(() => {
     const main = document.querySelector("[data-app-shell-main-content-layout]");
+    const sidebar = document.querySelector('aside[data-kisatsutai-sidebar="true"]');
+    const summaryPanel = document.querySelector('[data-kisatsutai-summary-panel="true"]');
     const transcript = document.querySelector("[data-host-conversation-transcript]");
     const composer = document.querySelector('[data-kisatsutai-composer="true"]');
     const composerShell = document.querySelector('[data-kisatsutai-composer-shell="true"]');
     const editor = composer?.querySelector("textarea, [contenteditable='true']");
     const send = document.querySelector("#composer-action");
     const tool = document.querySelector('[data-testid="tool-search"]');
+    const titlebar = document.querySelector('[data-app-shell-header-edge-scroll="true"]');
+    const titlebarThreadLabel = titlebar?.querySelector('[data-host-titlebar-thread-label]');
+    const titlebarCodexTrigger = titlebar?.querySelector('[data-codex-plus-trigger-installed]');
     const newTask = document.querySelector("aside > button");
+    const projectRow = document.querySelector("[data-app-action-sidebar-project-row]");
+    const activeTaskRow = document.querySelector(
+      '[data-app-action-sidebar-thread-row][data-app-action-sidebar-thread-active="true"]',
+    );
+    const inactiveTaskRow = document.querySelector(
+      '[data-app-action-sidebar-thread-row]:not([data-app-action-sidebar-thread-active="true"])',
+    );
+    const sidebarSection = document.querySelector("[data-app-action-sidebar-section-toggle]");
+    const emptyProject = document.querySelector("[data-host-empty-project]");
+    const projectList = document.querySelector("[data-app-action-sidebar-project-list-id]");
     const newTaskAfterStyle = newTask instanceof HTMLElement
       ? getComputedStyle(newTask, "::after")
       : null;
+    const titlebarStyle = titlebar instanceof HTMLElement ? getComputedStyle(titlebar) : null;
+    const titlebarThreadLabelStyle = titlebarThreadLabel instanceof HTMLElement
+      ? getComputedStyle(titlebarThreadLabel)
+      : null;
+    const titlebarCodexTriggerStyle = titlebarCodexTrigger instanceof HTMLElement
+      ? getComputedStyle(titlebarCodexTrigger)
+      : null;
+    const sidebarPaint = (element) => {
+      if (!(element instanceof HTMLElement)) return null;
+      const style = getComputedStyle(element);
+      return {
+        color: style.color,
+        backgroundImage: style.backgroundImage,
+        boxShadow: style.boxShadow,
+        textShadow: style.textShadow,
+        opacity: style.opacity,
+      };
+    };
     const headings = Object.fromEntries(Array.from(document.querySelectorAll(
       "[data-kisatsutai-summary-section]",
     )).map((section) => [
@@ -33,6 +107,11 @@ async function inspectCore(page) {
       section.querySelector("header button")?.innerText?.replace(/\s+/g, " ").trim() || "",
     ]));
     const mainBeforeStyle = main instanceof HTMLElement ? getComputedStyle(main, "::before") : null;
+    const bodyBeforeStyle = getComputedStyle(document.body, "::before");
+    const sidebarStyle = sidebar instanceof HTMLElement ? getComputedStyle(sidebar) : null;
+    const summaryPanelStyle = summaryPanel instanceof HTMLElement
+      ? getComputedStyle(summaryPanel)
+      : null;
     const transcriptStyle = transcript instanceof HTMLElement ? getComputedStyle(transcript) : null;
     const composerStyle = composer instanceof HTMLElement ? getComputedStyle(composer) : null;
     const composerBeforeStyle = composer instanceof HTMLElement
@@ -51,11 +130,17 @@ async function inspectCore(page) {
     const composerFooterContent = composerFooter?.querySelector(
       ':scope > [data-pip-obstacle="thread-footer"]',
     );
+    const queuedPanel = composerFooter?.querySelector(
+      '[data-kisatsutai-queued-panel="true"]',
+    );
     const composerFooterStyle = composerFooter instanceof HTMLElement
       ? getComputedStyle(composerFooter)
       : null;
     const composerFooterBackdropStyle = composerFooterBackdrop instanceof HTMLElement
       ? getComputedStyle(composerFooterBackdrop)
+      : null;
+    const queuedPanelStyle = queuedPanel instanceof HTMLElement
+      ? getComputedStyle(queuedPanel)
       : null;
     const editorStyle = editor instanceof HTMLElement ? getComputedStyle(editor) : null;
     const hostIcon = send?.firstElementChild;
@@ -64,6 +149,16 @@ async function inspectCore(page) {
       ? getComputedStyle(breathingDock)
       : null;
     const sendStyle = send instanceof HTMLElement ? getComputedStyle(send) : null;
+    const missionStrip = document.querySelector("#kisatsutai-mission-strip");
+    const missionStripStyle = missionStrip instanceof HTMLElement ? getComputedStyle(missionStrip) : null;
+    const missionCrest = missionStrip?.querySelector(".kisatsutai-strip-crest");
+    const missionCrestStyle = missionCrest instanceof HTMLElement ? getComputedStyle(missionCrest) : null;
+    const missionCrestBeforeStyle = missionCrest instanceof HTMLElement
+      ? getComputedStyle(missionCrest, "::before")
+      : null;
+    const missionCrestAfterStyle = missionCrest instanceof HTMLElement
+      ? getComputedStyle(missionCrest, "::after")
+      : null;
     const duel = document.querySelector(".kisatsutai-strip-duel");
     const versus = duel?.querySelector(".kisatsutai-versus-mark");
     const squad = duel?.querySelector(".kisatsutai-strip-squad");
@@ -97,9 +192,76 @@ async function inspectCore(page) {
     return {
       surface: document.documentElement.dataset.kisatsutaiSurface || null,
       density: document.documentElement.dataset.kisatsutaiDensity || null,
+      sharedScene: {
+        backgroundImage: bodyBeforeStyle.backgroundImage.slice(0, 360),
+        imageCount: (bodyBeforeStyle.backgroundImage.match(/url\(/g) || []).length,
+        content: bodyBeforeStyle.content,
+        display: bodyBeforeStyle.display,
+        pointerEvents: bodyBeforeStyle.pointerEvents,
+        position: bodyBeforeStyle.position,
+        rootScene: document.documentElement.style.getPropertyValue("--ki-shared-scene"),
+        rootPosition: document.documentElement.style.getPropertyValue("--ki-shared-scene-position"),
+        localImages: {
+          main: (mainBeforeStyle?.backgroundImage.match(/url\(/g) || []).length,
+          sidebar: (sidebarStyle?.backgroundImage.match(/url\(/g) || []).length,
+          composer: (composerStyle?.backgroundImage.match(/url\(/g) || []).length,
+          summary: (summaryPanelStyle?.backgroundImage.match(/url\(/g) || []).length,
+        },
+      },
+      titlebarReadability: titlebarStyle ? {
+        backgroundImage: titlebarStyle.backgroundImage,
+        color: titlebarStyle.color,
+        threadColor: titlebarThreadLabelStyle?.color || null,
+        codexTriggerColor: titlebarCodexTriggerStyle?.color || null,
+        codexTriggerBackground: titlebarCodexTriggerStyle?.backgroundColor || null,
+      } : null,
+      sidebarHierarchy: {
+        project: sidebarPaint(projectRow),
+        activeTask: sidebarPaint(activeTaskRow),
+        inactiveTask: sidebarPaint(inactiveTaskRow),
+        section: sidebarPaint(sidebarSection),
+        emptyProject: sidebarPaint(emptyProject),
+        projectGuide: projectList instanceof HTMLElement ? (() => {
+          const style = getComputedStyle(projectList, "::before");
+          return {
+            backgroundImage: style.backgroundImage,
+            width: style.width,
+          };
+        })() : null,
+      },
+      missionStripLayout: missionStripStyle && main instanceof HTMLElement ? (() => {
+        const stripRect = missionStrip.getBoundingClientRect();
+        const mainRect = main.getBoundingClientRect();
+        const nativePicker = document.querySelector("[data-host-native-titlebar-picker]");
+        const nativePickerRect = nativePicker instanceof HTMLElement
+          ? nativePicker.getBoundingClientRect()
+          : null;
+        return {
+          containerWidth: Math.round(mainRect.width),
+          marginTop: missionStripStyle.marginTop,
+          topInset: Math.round(stripRect.top - mainRect.top),
+          top: Math.round(stripRect.top),
+          toolbarClearance: missionStrip.dataset.kisatsutaiToolbarClearance === "true",
+          nativePickerOverlap: nativePickerRect ? !(
+            stripRect.right <= nativePickerRect.left
+            || stripRect.left >= nativePickerRect.right
+            || stripRect.bottom <= nativePickerRect.top
+            || stripRect.top >= nativePickerRect.bottom
+          ) : null,
+        };
+      })() : null,
+      missionCrest: missionCrestStyle ? {
+        beforeContent: missionCrestBeforeStyle?.content || null,
+        beforeFontFamily: missionCrestBeforeStyle?.fontFamily || null,
+        backgroundImage: missionCrestStyle.backgroundImage,
+        borderRadius: missionCrestStyle.borderRadius,
+        afterBorderRadius: missionCrestAfterStyle?.borderRadius || null,
+        afterTransform: missionCrestAfterStyle?.transform || null,
+      } : null,
       readingScrim: mainBeforeStyle ? {
         display: mainBeforeStyle.display,
         backgroundImage: mainBeforeStyle.backgroundImage.slice(0, 360),
+        hasLocationImage: mainBeforeStyle.backgroundImage.includes("url("),
         filter: mainBeforeStyle.filter,
         pointerEvents: mainBeforeStyle.pointerEvents,
         readingCore: getComputedStyle(main).getPropertyValue("--ki-main-reading-core").trim(),
@@ -164,6 +326,15 @@ async function inspectCore(page) {
         backdropBackgroundImage: composerFooterBackdropStyle.backgroundImage,
         backdropBoxShadow: composerFooterBackdropStyle.boxShadow,
         backdropFilter: composerFooterBackdropStyle.filter,
+        queuedPanelMarkedCount: document.querySelectorAll(
+          '[data-kisatsutai-queued-panel="true"]',
+        ).length,
+        queuedPanelBorderTopWidth: queuedPanelStyle?.borderTopWidth || null,
+        queuedPanelBorderLeftWidth: queuedPanelStyle?.borderLeftWidth || null,
+        queuedPanelBorderRadius: queuedPanelStyle?.borderRadius || null,
+        queuedPanelBackgroundImage: queuedPanelStyle?.backgroundImage || null,
+        queuedPanelBoxShadow: queuedPanelStyle?.boxShadow || null,
+        queuedPanelBackdropFilter: queuedPanelStyle?.backdropFilter || null,
       } : null,
       labels: {
         newTask: document.querySelector("aside > button")?.textContent?.trim() || null,
@@ -360,24 +531,64 @@ let browser;
   const { chromium } = loadPlaywright();
   browser = await chromium.launch({
     headless: true,
-    executablePath: process.env.CODEX_CHROMIUM_EXECUTABLE || undefined,
+    executablePath: resolveBrowserExecutable(),
   });
   const harness = path.resolve(__dirname, "../preview/runtime-harness.html");
-  const desktopScreenshot = path.resolve(__dirname, "../preview/runtime-qa-v0520.png");
-  const readingScreenshot = path.resolve(__dirname, "../preview/conversation-scrim-v0520.png");
-  const mobileScreenshot = path.resolve(__dirname, "../preview/conversation-scrim-mobile-v0520.png");
-  const composerScreenshot = path.resolve(__dirname, "../preview/composer-surface-v0520.png");
-  const composerFooterScreenshot = path.resolve(__dirname, "../preview/composer-footer-v0520.png");
-  const singleDuelScreenshot = path.resolve(__dirname, "../preview/duel-single-v0520.png");
-  const wideDuelScreenshot = path.resolve(__dirname, "../preview/duel-wide-v0520.png");
-  const settingsScreenshot = path.resolve(__dirname, "../preview/native-settings-v0520.png");
-  const nativeOverlayScreenshot = path.resolve(__dirname, "../preview/native-overlays-v0520.png");
-  const artGalleryScreenshot = path.resolve(__dirname, "../preview/art-gallery-v0520.png");
+  const manifest = JSON.parse(readFileSync(path.resolve(__dirname, "../manifest.json"), "utf8"));
+  const screenshotTag = `v${manifest.version.replace(/\D/g, "")}`;
+  const screenshotPath = (name) => path.resolve(__dirname, `../preview/${name}-${screenshotTag}.png`);
+  const desktopScreenshot = screenshotPath("runtime-qa");
+  const readingScreenshot = screenshotPath("conversation-scrim");
+  const mobileScreenshot = screenshotPath("conversation-scrim-mobile");
+  const composerScreenshot = screenshotPath("composer-surface");
+  const composerFooterScreenshot = screenshotPath("composer-footer");
+  const singleDuelScreenshot = screenshotPath("duel-single");
+  const wideDuelScreenshot = screenshotPath("duel-wide");
+  const settingsScreenshot = screenshotPath("native-settings");
+  const nativeOverlayScreenshot = screenshotPath("native-overlays");
+  const artGalleryScreenshot = screenshotPath("art-gallery");
 
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   await page.goto(pathToFileURL(harness).href, { waitUntil: "load" });
   await page.waitForTimeout(700);
+  await page.evaluate(() => {
+    const aside = document.querySelector("aside");
+    const firstProject = document.querySelector("[data-app-action-sidebar-project-row]");
+    if (!(aside instanceof HTMLElement) || !(firstProject instanceof HTMLElement)) return;
+
+    const section = document.createElement("button");
+    section.type = "button";
+    section.dataset.appActionSidebarSectionToggle = "";
+    section.textContent = "Projects";
+    firstProject.before(section);
+
+    const list = document.createElement("div");
+    list.dataset.appActionSidebarProjectListId = "runtime-empty-project";
+    const empty = document.createElement("div");
+    empty.dataset.hostEmptyProject = "true";
+    empty.className = "text-token-description-foreground opacity-50 px-8 py-1 text-base";
+    empty.textContent = "No chats";
+    list.appendChild(empty);
+    firstProject.after(list);
+  });
+  await page.waitForTimeout(80);
   const core = await inspectCore(page);
+  const locationSwitchInitial = await inspectLocationSwitch(page);
+  await page.locator(".kisatsutai-location-switch").click();
+  await page.waitForTimeout(120);
+  const locationSwitchChanged = await inspectLocationSwitch(page);
+  await page.locator('[data-app-action-sidebar-thread-id="test-task-2"]').click();
+  await page.waitForTimeout(160);
+  const locationSwitchOtherInitial = await inspectLocationSwitch(page);
+  await page.locator(".kisatsutai-location-switch").click();
+  await page.waitForTimeout(120);
+  const locationSwitchOtherChanged = await inspectLocationSwitch(page);
+  await page.locator('[data-app-action-sidebar-thread-id="test-task"]').click();
+  await page.waitForTimeout(160);
+  const locationSwitchRestored = await inspectLocationSwitch(page);
+  await page.locator("#restart-tweak").click();
+  await page.waitForTimeout(420);
+  const locationSwitchRestarted = await inspectLocationSwitch(page);
   await page.locator('[data-testid="composer"] textarea').fill(
     "请把当前主题推送到 GitHub，并从远程仓库重新安装验证；这是一段用于检查长文本不会与任务地点标签重叠的输入。",
   );
@@ -451,6 +662,10 @@ let browser;
     density: document.documentElement.dataset.kisatsutaiDensity || null,
     glassCount: document.querySelectorAll(".kisatsutai-conversation-glass").length,
     stripDisplay: getComputedStyle(document.querySelector("#kisatsutai-mission-strip")).display,
+    sharedSceneDisplay: getComputedStyle(document.body, "::before").display,
+    sharedSceneImageCount: (
+      getComputedStyle(document.body, "::before").backgroundImage.match(/url\(/g) || []
+    ).length,
   }));
 
   const settingsPage = await browser.newPage({ viewport: { width: 1180, height: 780 } });
@@ -610,6 +825,66 @@ let browser;
   const wide = await inspectCore(widePage);
   await widePage.locator("#kisatsutai-mission-strip").screenshot({ path: wideDuelScreenshot });
 
+  const titlebarPage = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  await titlebarPage.goto(pathToFileURL(harness).href, { waitUntil: "load" });
+  await titlebarPage.waitForTimeout(500);
+  await titlebarPage.evaluate(() => {
+    const main = document.querySelector("[data-app-shell-main-content-layout]");
+    if (!(main instanceof HTMLElement)) return;
+    main.style.top = "-107px";
+    const picker = document.createElement("button");
+    picker.type = "button";
+    picker.dataset.hostNativeTitlebarPicker = "true";
+    picker.style.cssText = [
+      "position: fixed",
+      "z-index: 999",
+      "top: 22px",
+      "right: 335px",
+      "width: 105px",
+      "height: 56px",
+    ].join(";");
+    document.body.append(picker);
+    window.dispatchEvent(new Event("resize"));
+  });
+  await titlebarPage.waitForTimeout(320);
+  const titlebarCollision = await inspectCore(titlebarPage);
+
+  const missionFramePage = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  await missionFramePage.goto(pathToFileURL(harness).href, { waitUntil: "load" });
+  await missionFramePage.waitForTimeout(500);
+  await missionFramePage.evaluate(() => {
+    const surface = document.querySelector("[data-app-shell-main-content-layout]");
+    if (!(surface instanceof HTMLElement) || !(surface.parentElement instanceof HTMLElement)) return;
+    const frame = document.createElement("div");
+    frame.setAttribute("role", "main");
+    frame.dataset.hostNativeMainFrame = "true";
+    frame.style.backgroundColor = "rgb(255, 255, 255)";
+    surface.parentElement.insertBefore(frame, surface);
+    frame.appendChild(surface);
+  });
+  await missionFramePage.waitForTimeout(360);
+  const missionFrameActive = await missionFramePage.evaluate(() => {
+    const frame = document.querySelector("[data-host-native-main-frame]");
+    return frame instanceof HTMLElement ? {
+      marked: frame.dataset.kisatsutaiMissionFrame || null,
+      backgroundColor: getComputedStyle(frame).backgroundColor,
+    } : null;
+  });
+  await missionFramePage.evaluate(() => {
+    delete document.body.dataset.kisatsutaiHarness;
+    document.querySelector('[data-testid="composer"]')?.remove();
+    const surface = document.querySelector("[data-app-shell-main-content-layout]");
+    if (surface) surface.innerHTML = "<h1>Settings</h1><p>Native feature content</p>";
+  });
+  await missionFramePage.waitForTimeout(420);
+  const missionFrameNative = await missionFramePage.evaluate(() => {
+    const frame = document.querySelector("[data-host-native-main-frame]");
+    return frame instanceof HTMLElement ? {
+      marked: frame.dataset.kisatsutaiMissionFrame || null,
+      backgroundColor: getComputedStyle(frame).backgroundColor,
+    } : null;
+  });
+
   const mobilePage = await browser.newPage({ viewport: { width: 390, height: 844 } });
   await mobilePage.goto(pathToFileURL(harness).href, { waitUntil: "load" });
   await mobilePage.waitForTimeout(600);
@@ -644,19 +919,62 @@ let browser;
     galleryInventory.characters !== 13
     || galleryInventory.hashira !== 9
     || galleryInventory.opponents !== 12
-    || galleryInventory.locations !== 10
+    || galleryInventory.locations !== 19
     || galleryInventory.missions !== 12
   ) failures.push(`art gallery inventory is incomplete: ${JSON.stringify(galleryInventory)}`);
   if (core.surface !== "mission" || core.density !== "immersive") {
     failures.push("core conversation did not enter the immersive mission surface");
   }
   if (
+    core.sharedScene.imageCount !== 1
+    || core.sharedScene.content === "none"
+    || core.sharedScene.display === "none"
+    || core.sharedScene.pointerEvents !== "none"
+    || core.sharedScene.position !== "fixed"
+    || !core.sharedScene.rootScene.includes("--ki-location-")
+    || !core.sharedScene.rootPosition
+    || Object.values(core.sharedScene.localImages).some((count) => count !== 0)
+  ) failures.push(`mission modules do not share one stitched viewport scene: ${JSON.stringify(core.sharedScene)}`);
+  if (
+    !core.titlebarReadability
+    || !core.titlebarReadability.backgroundImage.includes("linear-gradient")
+    || core.titlebarReadability.threadColor !== "rgb(231, 235, 230)"
+    || core.titlebarReadability.codexTriggerColor !== "rgb(231, 235, 230)"
+    || core.titlebarReadability.codexTriggerBackground === "rgba(0, 0, 0, 0)"
+  ) failures.push(`native titlebar remained unreadable on the shared scene: ${JSON.stringify(core.titlebarReadability)}`);
+  if (
+    !core.sidebarHierarchy.project
+    || core.sidebarHierarchy.project.backgroundImage !== "none"
+    || core.sidebarHierarchy.project.color !== "rgb(237, 241, 237)"
+    || core.sidebarHierarchy.project.boxShadow !== "none"
+  ) failures.push(`project headings still looked like selected cards: ${JSON.stringify(core.sidebarHierarchy.project)}`);
+  if (
+    !core.sidebarHierarchy.inactiveTask
+    || !core.sidebarHierarchy.inactiveTask.backgroundImage.includes("rgba(34, 43, 36, 0.58)")
+    || !core.sidebarHierarchy.activeTask?.backgroundImage.includes("rgba(61, 94, 72, 0.9)")
+    || !core.sidebarHierarchy.projectGuide?.backgroundImage.includes("rgba(213, 181, 108, 0.26)")
+    || core.sidebarHierarchy.projectGuide.width !== "1px"
+  ) failures.push(`task rows did not retain distinct inactive and active levels: ${JSON.stringify(core.sidebarHierarchy)}`);
+  if (
+    !core.sidebarHierarchy.emptyProject
+    || core.sidebarHierarchy.emptyProject.color !== "rgb(194, 193, 183)"
+    || core.sidebarHierarchy.emptyProject.opacity !== "0.78"
+    || core.sidebarHierarchy.project.textShadow.includes("0.94")
+  ) failures.push(`sidebar secondary copy remained muddy or over-shadowed: ${JSON.stringify(core.sidebarHierarchy)}`);
+  if (
     !core.readingScrim
     || core.readingScrim.display === "none"
     || !core.readingScrim.backgroundImage.includes("linear-gradient")
+    || core.readingScrim.hasLocationImage
     || core.readingScrim.pointerEvents !== "none"
-    || !core.readingScrim.readingCore.includes("0.48")
-    || !core.readingScrim.readingEdge.includes("0.2")
+    || !(
+      core.readingScrim.readingCore.includes("0.48")
+      || core.readingScrim.readingCore.includes("0.34")
+    )
+    || !(
+      core.readingScrim.readingEdge.includes("0.2")
+      || core.readingScrim.readingEdge.includes("0.12")
+    )
     || core.readingScrim.glassCount !== 0
   ) failures.push(`conversation scrim is not a soft background light field: ${JSON.stringify(core.readingScrim)}`);
   if (
@@ -668,8 +986,8 @@ let browser;
     || core.composerSurface.filter !== "none"
     || core.composerSurface.backdropFilter !== "none"
     || !core.composerSurface.backgroundImage.includes("linear-gradient")
-    || !core.composerSurface.hasLocationImage
-    || Number(core.composerSurface.nightCore.match(/,\s*([0-9.]+)\)$/)?.[1] || 0) < 0.92
+    || core.composerSurface.hasLocationImage
+    || Number(core.composerSurface.nightCore.match(/,\s*([0-9.]+)\)$/)?.[1] || 0) < 0.80
     || core.composerSurface.beforeDisplay !== "block"
     || !core.composerSurface.beforeContent?.includes("任务地点")
     || !core.composerSurface.locationLabel?.includes("任务地点")
@@ -681,7 +999,7 @@ let browser;
     || core.composerSurface.editorBoxShadow !== "none"
     || core.composerSurface.editorBackgroundColor !== "rgba(0, 0, 0, 0)"
     || core.composerSurface.editorBackgroundImage !== "none"
-  ) failures.push(`composer is not a single rounded, shadowless location surface: ${JSON.stringify(core.composerSurface)}`);
+  ) failures.push(`composer is not a shadowless reading overlay on the shared scene: ${JSON.stringify(core.composerSurface)}`);
   if (
     !core.composerShell
     || core.composerShell.markedCount < 1
@@ -709,6 +1027,13 @@ let browser;
     || core.composerFooter.backdropBackgroundImage !== "none"
     || core.composerFooter.backdropBoxShadow !== "none"
     || core.composerFooter.backdropFilter !== "none"
+    || core.composerFooter.queuedPanelMarkedCount !== 1
+    || core.composerFooter.queuedPanelBorderTopWidth !== "0px"
+    || core.composerFooter.queuedPanelBorderLeftWidth !== "0px"
+    || core.composerFooter.queuedPanelBorderRadius !== "0px"
+    || !core.composerFooter.queuedPanelBackgroundImage.includes("rgba(13, 15, 13, 0.42)")
+    || core.composerFooter.queuedPanelBoxShadow !== "none"
+    || !core.composerFooter.queuedPanelBackdropFilter.includes("blur(8px)")
   ) failures.push(`global thread footer still paints a dark composer backdrop: ${JSON.stringify(core.composerFooter)}`);
   if (
     !focusedComposer.composerSurface
@@ -787,16 +1112,46 @@ let browser;
     || !["none", "normal"].includes(core.newTaskControl.customAdornment)
   ) failures.push(`new-task control retained themed chrome: ${JSON.stringify(core.newTaskControl)}`);
   if (!core.labels.headings.artifacts?.includes("任务案卷")) failures.push("task dossier label was not retained");
+  if (!core.labels.headings.environment?.includes("任务案卷")) failures.push("environment dossier label was not localized");
   if (!core.labels.headings["tool-sources"]?.includes("渡鸦情报")) failures.push("raven intel label was not retained");
   if (!core.labels.headings["background-subagents"]?.includes("出战小队")) failures.push("squad label was not retained");
   if (core.labels.raven !== "渡鸦在线") failures.push("raven online status was not retained");
+  if (
+    !locationSwitchInitial.location
+    || locationSwitchInitial.location !== locationSwitchInitial.dossierLocation
+    || locationSwitchInitial.buttonText !== "换景"
+    || !locationSwitchInitial.ariaLabel?.includes(locationSwitchInitial.name)
+    || locationSwitchInitial.title !== locationSwitchInitial.ariaLabel
+    || Number.parseFloat(locationSwitchInitial.width) < 46
+    || locationSwitchInitial.height !== "32px"
+    || locationSwitchInitial.cursor !== "pointer"
+    || !locationSwitchInitial.decoration
+    || locationSwitchInitial.decoration.content !== "none"
+  ) failures.push(`location switch was not a stable accessible utility: ${JSON.stringify(locationSwitchInitial)}`);
+  if (
+    locationSwitchChanged.location === locationSwitchInitial.location
+    || locationSwitchChanged.location !== locationSwitchChanged.dossierLocation
+    || !locationSwitchChanged.status?.includes(locationSwitchChanged.name)
+    || locationSwitchChanged.state !== "changed"
+  ) failures.push(`location switch did not change the active session background: ${JSON.stringify({ locationSwitchInitial, locationSwitchChanged })}`);
+  if (
+    locationSwitchOtherInitial.session === locationSwitchInitial.session
+    || locationSwitchOtherInitial.status !== null
+    || locationSwitchOtherChanged.location === locationSwitchOtherInitial.location
+    || locationSwitchRestored.session !== locationSwitchInitial.session
+    || locationSwitchRestored.location !== locationSwitchChanged.location
+    || locationSwitchRestored.status !== null
+  ) failures.push(`location switch leaked across session boundaries: ${JSON.stringify({ locationSwitchOtherInitial, locationSwitchOtherChanged, locationSwitchRestored })}`);
+  if (
+    locationSwitchRestarted.session !== locationSwitchChanged.session
+    || locationSwitchRestarted.location !== locationSwitchChanged.location
+  ) failures.push(`location switch was not restored from session storage: ${JSON.stringify({ locationSwitchChanged, locationSwitchRestarted })}`);
   if (
     core.labels.branch !== "Current branch"
     || core.labels.sidebarSearch !== "Search"
     || core.labels.composerPlaceholder !== "Ask anything"
     || core.labels.sendAria !== "Send"
     || core.labels.sendTitle !== null
-    || core.labels.headings.environment !== "Environment"
     || core.labels.tool !== "Web search · 3 sources found"
   ) failures.push(`native labels were unexpectedly replaced: ${JSON.stringify(core.labels)}`);
   if (
@@ -826,6 +1181,44 @@ let browser;
   ) failures.push(`re-enabling motion did not restore breathing controls: ${JSON.stringify(motionRestoredComposer.nativeControls)}`);
   if (core.horizontalOverflow) failures.push("desktop core page has horizontal overflow");
   if (
+    !core.missionStripLayout
+    || core.missionStripLayout.toolbarClearance
+    || core.missionStripLayout.marginTop !== "56px"
+  ) failures.push(`ordinary embedded mission strip retained unnecessary titlebar clearance: ${JSON.stringify(core.missionStripLayout)}`);
+  if (
+    !core.missionCrest
+    || !core.missionCrest.beforeContent?.includes("滅")
+    || !core.missionCrest.beforeFontFamily?.includes("Mincho")
+    || core.missionCrest.backgroundImage.includes("transparent 45%")
+    || core.missionCrest.borderRadius !== "50%"
+    || core.missionCrest.afterBorderRadius !== "50%"
+    || core.missionCrest.afterTransform !== "none"
+  ) failures.push(`mission crest did not retain the transformed corps emblem: ${JSON.stringify(core.missionCrest)}`);
+  if (
+    !wide.missionStripLayout
+    || wide.missionStripLayout.containerWidth <= 1100
+    || wide.missionStripLayout.toolbarClearance
+    || wide.missionStripLayout.marginTop !== "56px"
+  ) failures.push(`wide mission strip retained unnecessary titlebar clearance: ${JSON.stringify(wide.missionStripLayout)}`);
+  if (
+    !titlebarCollision.missionStripLayout
+    || titlebarCollision.missionStripLayout.containerWidth > 1100
+    || !titlebarCollision.missionStripLayout.toolbarClearance
+    || parseFloat(titlebarCollision.missionStripLayout.marginTop) < 128
+    || titlebarCollision.missionStripLayout.top < 80
+    || titlebarCollision.missionStripLayout.nativePickerOverlap
+  ) failures.push(`narrow mission strip did not clear the native titlebar picker: ${JSON.stringify(titlebarCollision.missionStripLayout)}`);
+  if (
+    !missionFrameActive
+    || missionFrameActive.marked !== "true"
+    || missionFrameActive.backgroundColor !== "rgba(0, 0, 0, 0)"
+  ) failures.push(`native mission frame did not expose the shared scene: ${JSON.stringify(missionFrameActive)}`);
+  if (
+    !missionFrameNative
+    || missionFrameNative.marked !== null
+    || missionFrameNative.backgroundColor !== "rgb(255, 255, 255)"
+  ) failures.push(`native frame did not restore after leaving the mission surface: ${JSON.stringify(missionFrameNative)}`);
+  if (
     nativePage.surface !== null
     || nativePage.strip
     || nativePage.glassCount !== 0
@@ -833,7 +1226,12 @@ let browser;
     || nativePage.newTask !== "New task"
     || nativePage.headings.join("|") !== "Outputs|Environment|Sources|Subagents"
   ) failures.push(`non-core page retained themed descriptions: ${JSON.stringify(nativePage)}`);
-  if (quiet.density !== "quiet" || quiet.glassCount !== 0 || quiet.stripDisplay !== "none") {
+  if (
+    quiet.density !== "quiet"
+    || quiet.glassCount !== 0
+    || quiet.stripDisplay !== "none"
+    || quiet.sharedSceneDisplay !== "none"
+  ) {
     failures.push(`quiet mode did not remove immersive reading layers: ${JSON.stringify(quiet)}`);
   }
   if (
@@ -925,6 +1323,14 @@ let browser;
     artGalleryScreenshot,
     galleryInventory,
     core,
+    locationSwitch: {
+      initial: locationSwitchInitial,
+      changed: locationSwitchChanged,
+      otherSessionInitial: locationSwitchOtherInitial,
+      otherSessionChanged: locationSwitchOtherChanged,
+      restored: locationSwitchRestored,
+      restarted: locationSwitchRestarted,
+    },
     focusedComposerLabel: focusedComposer.composerSurface && {
       display: focusedComposer.composerSurface.beforeDisplay,
       content: focusedComposer.composerSurface.beforeContent,
@@ -934,6 +1340,9 @@ let browser;
     motionRestoredComposer: motionRestoredComposer.nativeControls,
     singleDuel: singleDuel.duelLayout,
     wideDuel: wide.duelLayout,
+    titlebarCollision: titlebarCollision.missionStripLayout,
+    missionFrameActive,
+    missionFrameNative,
     nativePage,
     quiet,
     nativeSettings,
