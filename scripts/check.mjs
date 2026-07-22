@@ -103,6 +103,7 @@ if (existsSync(installerPath)) {
     "validate_theme_script",
     "2097152",
     'pgrep -x CodexPlusPlus',
+    '已删除 ${label}：${target_path}',
   ]) {
     if (!installer.includes(required)) errors.push(`install.sh is missing required flow: ${required}`);
   }

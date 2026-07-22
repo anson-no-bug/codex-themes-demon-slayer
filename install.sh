@@ -238,7 +238,7 @@ resolve_codexplusplus_release() {
   printf '%s\n' "$release_version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' \
     || fail "GitHub Release tag 不是预期的三段数字版本：$release_tag"
   version_at_least "$release_version" "$CODEXPP_MIN_VERSION" \
-    || fail "BigPizzaV3 最新版本 $release_version 低于最低要求 $CODEXPP_MIN_VERSION。"
+    || fail "BigPizzaV3 最新版本 ${release_version} 低于最低要求 ${CODEXPP_MIN_VERSION}。"
   expected_asset_name="CodexPlusPlus-${release_version}-macos-${CODEXPP_RELEASE_ARCH}.dmg"
   asset_index=0
   asset_name=""
@@ -322,7 +322,7 @@ install_app_bundle() {
   fi
   if ! run_install_command mv "$staged_app" "$destination_app"; then
     if [ -e "$previous_app" ]; then run_install_command mv "$previous_app" "$destination_app"; fi
-    fail "无法启用 $app_name。"
+    fail "无法启用 ${app_name}。"
   fi
   if ! verify_bigpizza_app "$destination_app" "$expected_bundle_id"; then
     run_install_command rm -rf "$destination_app"
@@ -435,14 +435,14 @@ remove_user_tree() {
   expected_name=$3
   [ -e "$target_path" ] || return 0
   [ "$(basename "$target_path")" = "$expected_name" ] \
-    || fail "拒绝删除名称异常的 $label：$target_path"
+    || fail "拒绝删除名称异常的 ${label}：${target_path}"
   case "$target_path" in
     "$HOME"|"$HOME/"|"/"|"") fail "拒绝删除过宽路径：$target_path" ;;
     "$HOME"/*) ;;
-    *) fail "拒绝删除 HOME 之外的 $label：$target_path" ;;
+    *) fail "拒绝删除 HOME 之外的 ${label}：${target_path}" ;;
   esac
   rm -rf "$target_path"
-  say "已删除 $label：$target_path"
+  say "已删除 ${label}：${target_path}"
 }
 
 remove_codexplusplus_app() {
