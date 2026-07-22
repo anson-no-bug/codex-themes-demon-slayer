@@ -2,6 +2,22 @@
 
 把 Codex 会话变成鬼杀队任务案卷：角色编队、任务地点、对手难度和呼吸法反馈会随当前会话稳定组合。适用于 Codex Desktop + [BigPizzaV3 Codex++](https://github.com/BigPizzaV3/CodexPlusPlus) `>= 1.2.41`，当前版本 `0.5.21`。
 
+## 安装
+
+仅支持 macOS。先安装并启动过一次官方 Codex Desktop，再完全退出官方 Codex、Codex++ 与管理工具，然后执行：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/anson-no-bug/codex-themes-demon-slayer/main/install.sh | sh
+```
+
+用户不需要预装 Git、Node.js、Homebrew、ImageMagick 或 BigPizzaV3 Codex++。安装器会自动识别 Mac 架构、下载并校验 BigPizzaV3 官方 DMG、安装双 App，再把主题写入 `~/.config/Codex++/user_scripts/`。安装后完全退出 Codex，并从 `/Applications/Codex++.app` 启动；直接打开官方 Codex 不会加载主题。
+
+想交给 Codex 或其他能操作终端的 AI 时，可以直接说：
+
+> 请执行并检查 README 中的鬼杀队主题安装命令；完成后从 `/Applications/Codex++.app` 启动，并运行只读健康检查确认安装成功。
+
+完整的安装流程、健康检查、更新和卸载方式见 [INSTALL.md](./INSTALL.md)。
+
 ![鬼杀队任务中枢主题美术集](./preview/art-gallery-v0521.png)
 
 ## 这个主题带来了什么
@@ -24,14 +40,8 @@
 
 ![移动端会话效果](./preview/conversation-scrim-mobile-v0521.png)
 
-## 一句话交给 AI 安装
+## 安全边界
 
-把下面这句话发给 Codex 或其他能操作终端的 AI：
-
-> 请执行并检查 `curl -fsSL https://raw.githubusercontent.com/anson-no-bug/codex-themes-demon-slayer/main/install.sh | sh`；安装器会在缺少 BigPizzaV3 Codex++ 时自动识别 Mac 架构、下载并校验官方 DMG、安装双 App，再安装主题。完成后必须从 `/Applications/Codex++.app` 启动并验证主题。
-
-需要自己操作时，直接看 [INSTALL.md](./INSTALL.md)。
-
-官方 Codex 是唯一前置条件。安装器会自动补齐 BigPizzaV3 双 App，并只把主题写入 `~/.config/Codex++/user_scripts/`；下载的 DMG 必须匹配 GitHub Release API 提供的 SHA-256 才会安装。它不会修改官方 `app.asar`、不会重签名 Codex、不会创建官方 App 备份、不会安装 LaunchAgent，也不会创建本地签名证书。主题只在通过 `Codex++.app` 启动时加载；直接打开官方 Codex 保持原生界面。
+下载的 DMG 必须匹配 GitHub Release API 提供的 SHA-256 才会安装。安装器不会修改官方 `app.asar`、不会重签名 Codex、不会创建官方 App 备份、不会安装 LaunchAgent，也不会创建本地签名证书。
 
 本项目是非官方、非商业的本地粉丝主题；素材来源和使用边界见 [ATTRIBUTION.md](./ATTRIBUTION.md)。

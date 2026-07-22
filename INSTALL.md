@@ -2,13 +2,15 @@
 
 ## 安装
 
-唯一前置条件是已安装并成功启动过一次官方 Codex Desktop。执行：
+安装器仅支持 macOS `arm64` 和 `x86_64`。唯一的应用前置条件是已安装并成功启动过一次官方 Codex Desktop；安装或更新前请完全退出官方 Codex、Codex++ 与管理工具，然后执行：
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/anson-no-bug/codex-themes-demon-slayer/main/install.sh | sh
 ```
 
-用户不需要预装 Git、Node.js、Homebrew、ImageMagick 或 BigPizzaV3 Codex++。安装器会先检查 macOS 自带命令；缺少必要系统命令时会明确停止，不会静默跳过。
+用户不需要预装 Git、Node.js、Homebrew、ImageMagick 或 BigPizzaV3 Codex++。安装器会自动补齐主题所需的 BigPizzaV3 双 App，并检查安装过程使用的 macOS 内置命令；系统组件异常时会明确停止，不会静默跳过。下载需要能够访问 GitHub；只有 `/Applications` 当前不可写时，macOS 才会通过 `sudo` 请求一次管理员密码。
+
+如果官方 Codex 正在自动更新，请先等待更新完成再执行安装。安装器不会绕过或修补官方签名；更新中间态导致签名暂时不可验证时，它会安全停止。
 
 ## 安装流程
 
@@ -24,7 +26,7 @@ curl -fsSL https://raw.githubusercontent.com/anson-no-bug/codex-themes-demon-sla
 ~/.config/Codex++/user_scripts/demon-slayer-codex-theme.user.js
 ```
 
-写入 `/Applications` 需要管理员权限时，密码只由 macOS `sudo` 读取。GitHub Release API 不可用时，安装器只会回退到内置且已核验哈希的 BigPizzaV3 v1.2.41，不执行无校验 DMG 安装。
+写入 `/Applications` 需要管理员权限时，密码只由 macOS `sudo` 读取，安装器不会读取或保存密码。GitHub Release API 不可用时，安装器只会回退到内置且已核验哈希的 BigPizzaV3 v1.2.41，不执行无校验 DMG 安装。
 
 安装器不会修改或重签名官方 Codex，不创建官方 App 备份、LaunchAgent、本地签名证书，也不会删除 `~/Library/Application Support/Codex/`、`~/.codex/` 或任何会话数据。
 
