@@ -448,6 +448,14 @@
     </div>
 
     <script>
+      var module = { exports: {} };
+      var exports = module.exports;
+    </script>
+    <script src="../index.js"></script>
+    <script>
+      const tweak = module.exports;
+      const values = new Map();
+      let pageHandle = null;
       document.querySelector('[data-testid="composer"]').addEventListener("submit", (event) => {
         event.preventDefault();
         document.body.dataset.composerSubmits = String(
@@ -459,14 +467,73 @@
           document.body.dataset.nativeAgentOpened = button.dataset.nativeAgent;
         });
       });
+      const api = {
+        process: "renderer",
+        manifest: {
+          id: "dev.local.demon-slayer-codex-theme",
+          name: "鬼灭之刃 · 鬼杀队任务中枢"
+        },
+        storage: {
+          get(key, fallback) { return values.has(key) ? values.get(key) : fallback; },
+          set(key, value) { values.set(key, value); },
+          delete(key) { values.delete(key); },
+          all() { return Object.fromEntries(values); }
+        },
+        react: {
+          getFiber(node) {
+            const section = node instanceof Element ? node.closest("section[data-section-key]") : null;
+            if (!section) return null;
+            const props = { sectionKey: section.dataset.sectionKey };
+            if (section.dataset.sectionKey === "background-subagents") {
+              props.backgroundAgents = [
+                { conversationId: "subagent-a" },
+                { conversationId: "subagent-b" }
+              ];
+            }
+            return {
+              memoizedProps: {},
+              child: null,
+              sibling: null,
+              return: {
+                memoizedProps: props,
+                child: null,
+                sibling: null,
+                return: null
+              }
+            };
+          }
+        },
+        settings: {
+          registerPage(page) {
+            pageHandle = page;
+            page.render(document.getElementById("settings-root"));
+            return {
+              unregister() {
+                document.getElementById("settings-root").replaceChildren();
+              }
+            };
+          }
+        },
+        log: {
+          debug() {},
+          info() {},
+          warn() {},
+          error() {}
+        }
+      };
+
+      async function startHarness() {
+        await tweak.start(api);
+        document.body.dataset.harnessState = "started";
+      }
+
       document.getElementById("stop-tweak").addEventListener("click", () => {
-        window.__demonSlayerCodexThemeRuntime.stop();
+        tweak.stop();
         document.body.dataset.harnessState = "stopped";
       });
       document.getElementById("restart-tweak").addEventListener("click", () => {
-        window.__demonSlayerCodexThemeRuntime.stop();
-        window.__demonSlayerCodexThemeRuntime.start();
-        document.body.dataset.harnessState = "started";
+        tweak.stop();
+        startHarness();
       });
       document.querySelectorAll("[data-app-action-sidebar-thread-row]").forEach((row) => {
         row.addEventListener("click", (event) => {
@@ -479,8 +546,7 @@
           row.setAttribute("aria-current", "page");
         });
       });
+      startHarness();
     </script>
-    <script src="../index.js"></script>
-    <script>document.body.dataset.harnessState = "started";</script>
   </body>
 </html>

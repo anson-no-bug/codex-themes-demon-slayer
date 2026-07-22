@@ -363,28 +363,21 @@ let browser;
     executablePath: process.env.CODEX_CHROMIUM_EXECUTABLE || undefined,
   });
   const harness = path.resolve(__dirname, "../preview/runtime-harness.html");
-  const desktopScreenshot = path.resolve(__dirname, "../preview/runtime-qa-v0521.png");
-  const readingScreenshot = path.resolve(__dirname, "../preview/conversation-scrim-v0521.png");
-  const mobileScreenshot = path.resolve(__dirname, "../preview/conversation-scrim-mobile-v0521.png");
-  const composerScreenshot = path.resolve(__dirname, "../preview/composer-surface-v0521.png");
-  const composerFooterScreenshot = path.resolve(__dirname, "../preview/composer-footer-v0521.png");
-  const singleDuelScreenshot = path.resolve(__dirname, "../preview/duel-single-v0521.png");
-  const wideDuelScreenshot = path.resolve(__dirname, "../preview/duel-wide-v0521.png");
-  const settingsScreenshot = path.resolve(__dirname, "../preview/native-settings-v0521.png");
-  const nativeOverlayScreenshot = path.resolve(__dirname, "../preview/native-overlays-v0521.png");
-  const artGalleryScreenshot = path.resolve(__dirname, "../preview/art-gallery-v0521.png");
+  const desktopScreenshot = path.resolve(__dirname, "../preview/runtime-qa-v0520.png");
+  const readingScreenshot = path.resolve(__dirname, "../preview/conversation-scrim-v0520.png");
+  const mobileScreenshot = path.resolve(__dirname, "../preview/conversation-scrim-mobile-v0520.png");
+  const composerScreenshot = path.resolve(__dirname, "../preview/composer-surface-v0520.png");
+  const composerFooterScreenshot = path.resolve(__dirname, "../preview/composer-footer-v0520.png");
+  const singleDuelScreenshot = path.resolve(__dirname, "../preview/duel-single-v0520.png");
+  const wideDuelScreenshot = path.resolve(__dirname, "../preview/duel-wide-v0520.png");
+  const settingsScreenshot = path.resolve(__dirname, "../preview/native-settings-v0520.png");
+  const nativeOverlayScreenshot = path.resolve(__dirname, "../preview/native-overlays-v0520.png");
+  const artGalleryScreenshot = path.resolve(__dirname, "../preview/art-gallery-v0520.png");
 
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   await page.goto(pathToFileURL(harness).href, { waitUntil: "load" });
   await page.waitForTimeout(700);
   const core = await inspectCore(page);
-  const bigPizzaRuntime = await page.evaluate(() => ({
-    version: window.__demonSlayerCodexThemeRuntime?.version || null,
-    platform: window.__demonSlayerCodexThemeRuntime?.platform || null,
-    canStop: typeof window.__demonSlayerCodexThemeRuntime?.stop === "function",
-    canRestart: typeof window.__demonSlayerCodexThemeRuntime?.start === "function",
-    canSetPreference: typeof window.__demonSlayerCodexThemeRuntime?.setPreference === "function",
-  }));
   await page.locator('[data-testid="composer"] textarea').fill(
     "请把当前主题推送到 GitHub，并从远程仓库重新安装验证；这是一段用于检查长文本不会与任务地点标签重叠的输入。",
   );
@@ -414,10 +407,10 @@ let browser;
     path: composerFooterScreenshot,
   });
 
-  await page.evaluate(() => window.__demonSlayerCodexThemeRuntime.setPreference("motion", false));
+  await page.locator('[aria-label="启用状态动效"]').click();
   await page.waitForTimeout(260);
   const motionOffComposer = await inspectCore(page);
-  await page.evaluate(() => window.__demonSlayerCodexThemeRuntime.setPreference("motion", true));
+  await page.locator('[aria-label="启用状态动效"]').click();
   await page.waitForTimeout(260);
   const motionRestoredComposer = await inspectCore(page);
 
@@ -452,7 +445,7 @@ let browser;
   const quietPage = await browser.newPage({ viewport: { width: 1100, height: 760 } });
   await quietPage.goto(pathToFileURL(harness).href, { waitUntil: "load" });
   await quietPage.waitForTimeout(500);
-  await quietPage.evaluate(() => window.__demonSlayerCodexThemeRuntime.setPreference("density", "quiet"));
+  await quietPage.selectOption('[aria-label="选择界面氛围"]', "quiet");
   await quietPage.waitForTimeout(260);
   const quiet = await quietPage.evaluate(() => ({
     density: document.documentElement.dataset.kisatsutaiDensity || null,
@@ -460,28 +453,82 @@ let browser;
     stripDisplay: getComputedStyle(document.querySelector("#kisatsutai-mission-strip")).display,
   }));
 
-  const codexPlusPage = await browser.newPage({ viewport: { width: 1180, height: 780 } });
-  await codexPlusPage.goto(pathToFileURL(harness).href, { waitUntil: "load" });
-  await codexPlusPage.waitForTimeout(500);
-  await codexPlusPage.evaluate(() => {
-    const modal = document.createElement("section");
-    modal.dataset.codexPlusTestModal = "true";
-    modal.dataset.hostNativeOverlay = "true";
-    modal.setAttribute("role", "dialog");
-    modal.setAttribute("aria-modal", "true");
-    modal.innerHTML = [
-      "<h2>Codex++ 用户脚本</h2>",
-      "<p>管理、重载或停用已安装的用户脚本。</p>",
-      '<button type="button">重新加载用户脚本</button>',
-    ].join("");
-    document.body.appendChild(modal);
+  const settingsPage = await browser.newPage({ viewport: { width: 1180, height: 780 } });
+  await settingsPage.goto(pathToFileURL(harness).href, { waitUntil: "load" });
+  await settingsPage.waitForTimeout(500);
+  await settingsPage.evaluate(() => {
+    const group = document.createElement("div");
+    group.dataset.codexpp = "pages-group";
+    const heading = document.createElement("div");
+    heading.textContent = "Tweaks";
+    const pageButton = document.createElement("button");
+    pageButton.type = "button";
+    pageButton.dataset.codexpp = "nav-page-dev.local.demon-slayer-codex-theme:uniform";
+    pageButton.textContent = "鬼杀队任务中枢";
+    group.append(heading, pageButton);
+    document.body.prepend(group);
+    document.documentElement.dataset.codexppSettingsSurface = "true";
+    window.__codexppSettingsSurfaceVisible = true;
+    window.dispatchEvent(new CustomEvent("codexpp:settings-surface", {
+      detail: { visible: true, reason: "runtime-qa" },
+    }));
   });
-  await codexPlusPage.waitForTimeout(120);
-  const codexPlusModal = await inspectNativeOverlay(
-    codexPlusPage,
-    "[data-codex-plus-test-modal]",
-  );
-  await codexPlusPage.locator("[data-codex-plus-test-modal]").screenshot({ path: settingsScreenshot });
+  await settingsPage.waitForTimeout(360);
+  const nativeSettings = await settingsPage.evaluate(() => ({
+    theme: document.documentElement.dataset.kisatsutaiTheme || null,
+    surface: document.documentElement.dataset.kisatsutaiSurface || null,
+    ownPageShortcutHidden: document.querySelector(
+      '[data-codexpp="nav-page-dev.local.demon-slayer-codex-theme:uniform"]',
+    )?.hidden || false,
+    pagesGroupHidden: document.querySelector('[data-codexpp="pages-group"]')?.hidden || false,
+    missionStrip: !!document.querySelector("#kisatsutai-mission-strip"),
+    raven: !!document.querySelector(".kisatsutai-raven-status"),
+    customDecorations: document.querySelectorAll(
+      '[data-kisatsutai-injected="true"]:not(style)',
+    ).length,
+    settingsRows: document.querySelectorAll(".kisatsutai-native-settings-row").length,
+    hasLegacyEnableSwitch: !!document.querySelector('[aria-label="启用鬼杀队主题"]'),
+  }));
+  const lightSettingsAppearance = await inspectSettingsAppearance(settingsPage);
+  await settingsPage.locator("#settings-root").screenshot({ path: settingsScreenshot });
+  await settingsPage.evaluate(() => {
+    const darkHostTokens = {
+      "--color-background": "#101214",
+      "--color-background-primary": "#101214",
+      "--color-background-surface": "#15191d",
+      "--color-background-secondary": "#12161a",
+      "--color-token-bg-primary": "#15191d",
+      "--color-token-side-bar-background": "#12161a",
+      "--color-token-input-background": "#181c20",
+      "--color-token-text-primary": "#e7eaee",
+      "--color-token-text-secondary": "#a8b0b8",
+      "--color-token-conversation-body": "#e7eaee",
+      "--color-text-foreground": "#e7eaee",
+      "--color-text-foreground-secondary": "#a8b0b8",
+      "--color-token-button-foreground": "#e7eaee",
+      "--color-token-foreground": "#e7eaee",
+      "--color-token-border": "#394049",
+      "--color-token-border-light": "#394049",
+    };
+    for (const [name, value] of Object.entries(darkHostTokens)) {
+      document.documentElement.style.setProperty(name, value);
+    }
+  });
+  await settingsPage.waitForTimeout(80);
+  const darkSettingsAppearance = await inspectSettingsAppearance(settingsPage);
+  await settingsPage.evaluate(() => {
+    document.documentElement.dataset.codexppSettingsSurface = "false";
+    window.__codexppSettingsSurfaceVisible = false;
+    window.dispatchEvent(new CustomEvent("codexpp:settings-surface", {
+      detail: { visible: false, reason: "runtime-qa" },
+    }));
+  });
+  await settingsPage.waitForTimeout(360);
+  const missionRestoredAfterSettings = await settingsPage.evaluate(() => ({
+    theme: document.documentElement.dataset.kisatsutaiTheme || null,
+    surface: document.documentElement.dataset.kisatsutaiSurface || null,
+    missionStrip: !!document.querySelector("#kisatsutai-mission-strip"),
+  }));
 
   const overlayPage = await browser.newPage({ viewport: { width: 980, height: 620 } });
   await overlayPage.goto(pathToFileURL(harness).href, { waitUntil: "load" });
@@ -790,14 +837,36 @@ let browser;
     failures.push(`quiet mode did not remove immersive reading layers: ${JSON.stringify(quiet)}`);
   }
   if (
-    bigPizzaRuntime.version !== "0.5.21"
-    || bigPizzaRuntime.platform !== "BigPizzaV3/CodexPlusPlus user script"
-    || !bigPizzaRuntime.canStop
-    || !bigPizzaRuntime.canRestart
-    || !bigPizzaRuntime.canSetPreference
-  ) failures.push(`BigPizzaV3 runtime contract is incomplete: ${JSON.stringify(bigPizzaRuntime)}`);
+    nativeSettings.theme !== null
+    || nativeSettings.surface !== null
+    || !nativeSettings.ownPageShortcutHidden
+    || !nativeSettings.pagesGroupHidden
+    || nativeSettings.missionStrip
+    || nativeSettings.raven
+    || nativeSettings.customDecorations !== 0
+    || nativeSettings.settingsRows !== 3
+    || nativeSettings.hasLegacyEnableSwitch
+  ) failures.push(`settings did not return fully to the native Codex surface: ${JSON.stringify(nativeSettings)}`);
+  for (const [appearance, state] of [
+    [lightSettingsAppearance, "light"],
+    [darkSettingsAppearance, "dark"],
+  ]) {
+    const minimumContrast = Math.min(
+      appearance.primaryContrast,
+      appearance.secondaryContrast,
+      appearance.selectContrast,
+      appearance.resetContrast,
+    );
+    if (minimumContrast < 4.5) {
+      failures.push(`${state} settings contrast fell below 4.5:1: ${JSON.stringify(appearance)}`);
+    }
+  }
+  if (
+    missionRestoredAfterSettings.surface !== "mission"
+    || !missionRestoredAfterSettings.theme
+    || !missionRestoredAfterSettings.missionStrip
+  ) failures.push(`mission theme did not recover after leaving settings: ${JSON.stringify(missionRestoredAfterSettings)}`);
   for (const [overlay, label] of [
-    [codexPlusModal, "Codex++ user-script modal"],
     [nativeDialog, "confirmation dialog"],
     [nativeImageViewer, "image viewer"],
   ]) {
@@ -855,7 +924,6 @@ let browser;
     nativeOverlayScreenshot,
     artGalleryScreenshot,
     galleryInventory,
-    bigPizzaRuntime,
     core,
     focusedComposerLabel: focusedComposer.composerSurface && {
       display: focusedComposer.composerSurface.beforeDisplay,
@@ -868,7 +936,10 @@ let browser;
     wideDuel: wide.duelLayout,
     nativePage,
     quiet,
-    codexPlusModal,
+    nativeSettings,
+    lightSettingsAppearance,
+    darkSettingsAppearance,
+    missionRestoredAfterSettings,
     nativeDialog,
     nativeImageViewer,
     mobileReadingScrim: mobile.readingScrim,

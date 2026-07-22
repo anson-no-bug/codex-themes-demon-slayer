@@ -1,51 +1,63 @@
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const manifestPath = resolve(root, "manifest.json");
 const entryPath = resolve(root, "index.js");
-const packagePath = resolve(root, "package.json");
 const installerPath = resolve(root, "install.sh");
-const packageJson = JSON.parse(readFileSync(packagePath, "utf8"));
+const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
 const errors = [];
 
-if (!/^\d+\.\d+\.\d+(?:[-+].*)?$/.test(packageJson.version || "")) {
-  errors.push("package.json version is not semver");
+for (const field of ["id", "name", "version", "githubRepo"]) {
+  if (typeof manifest[field] !== "string" || !manifest[field]) {
+    errors.push(`${field} must be a non-empty string`);
+  }
 }
+if (!/^[a-zA-Z0-9._-]+$/.test(manifest.id || "")) errors.push("id has unsupported characters");
+if (!/^\d+\.\d+\.\d+(?:[-+].*)?$/.test(manifest.version || "")) errors.push("version is not semver");
+if (!/^[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+$/.test(manifest.githubRepo || "")) {
+  errors.push("githubRepo must use owner/repo");
+}
+if (!["renderer", "main", "both"].includes(manifest.scope)) errors.push("scope is invalid");
 if (!existsSync(entryPath)) errors.push("index.js is missing; run npm run build");
 if (!existsSync(installerPath)) errors.push("install.sh is missing");
 
 if (existsSync(installerPath)) {
   const installer = readFileSync(installerPath, "utf8");
-  if (/\$[A-Za-z_][A-Za-z0-9_]*[^\x00-\x7F]/u.test(installer)) {
-    errors.push("install.sh has an unbraced variable immediately followed by non-ASCII text");
+  try {
+    execFileSync("sh", ["-n", installerPath], { stdio: "pipe" });
+  } catch (error) {
+    errors.push(`install.sh syntax check failed: ${error.stderr?.toString().trim() || error.message}`);
+  }
+  for (const required of [
+    "b-nnett/codex-plusplus",
+    "repair --force --local",
+    "install --local",
+    "validate-tweak",
+    "codex-themes-demon-slayer",
+  ]) {
+    if (!installer.includes(required)) errors.push(`install.sh is missing required flow: ${required}`);
+  }
+  for (const forbidden of ["BigPizzaV3", "/Applications/Codex++.app", ".config/Codex++"]) {
+    if (installer.includes(forbidden)) errors.push(`install.sh still references removed launcher flow: ${forbidden}`);
   }
 }
 
 if (existsSync(entryPath)) {
   const source = readFileSync(entryPath, "utf8");
-  if (source.includes("__KISATSUTAI_THEME_CSS__")) {
-    errors.push("index.js contains an unresolved CSS build token");
-  }
+  if (source.includes("__KISATSUTAI_THEME_CSS__")) errors.push("index.js contains an unresolved build token");
   if (source.includes("__KISATSUTAI_CHARACTER_ASSETS__")) {
-    errors.push("index.js contains an unresolved asset build token");
-  }
-  if (!source.includes("__demonSlayerCodexThemeRuntime")) {
-    errors.push("index.js is missing the BigPizzaV3 runtime marker");
-  }
-  if (!source.includes("BigPizzaV3/CodexPlusPlus user script")) {
-    errors.push("index.js is missing the BigPizzaV3 platform contract");
-  }
-  if (source.includes("module.exports")) {
-    errors.push("index.js still contains the retired b-nnett CommonJS lifecycle");
-  }
-  if (!source.includes(`THEME_RUNTIME_VERSION = ${JSON.stringify(packageJson.version)}`)) {
-    errors.push("package.json and BigPizzaV3 runtime versions do not match");
+    errors.push("index.js contains an unresolved character asset token");
   }
   try {
-    new Function(source);
+    const module = { exports: {} };
+    new Function("module", "exports", "console", source)(module, module.exports, console);
+    if (typeof module.exports.start !== "function") errors.push("index.js does not export start()");
+    if (typeof module.exports.stop !== "function") errors.push("index.js does not export stop()");
   } catch (error) {
-    errors.push(`index.js syntax failed: ${error.message}`);
+    errors.push(`index.js syntax/evaluation failed: ${error.message}`);
   }
 }
 
@@ -53,5 +65,5 @@ if (errors.length) {
   console.error(errors.map((error) => `error: ${error}`).join("\n"));
   process.exitCode = 1;
 } else {
-  console.log("✓ BigPizzaV3 user script entry, embedded assets, version, and syntax are valid");
+  console.log("✓ manifest, CommonJS lifecycle, build tokens, and direct-install flow are valid");
 }

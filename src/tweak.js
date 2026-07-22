@@ -302,6 +302,14 @@ const ACTION_RULES = [
   },
 ];
 
+const PAGE_ICON = [
+  '<svg viewBox="0 0 20 20" fill="none" aria-hidden="true">',
+  '<path d="M4 15.5 14.8 4.2M5.2 4.2 16 15.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>',
+  '<circle cx="10" cy="10" r="3.2" stroke="currentColor" stroke-width="1.2"/>',
+  '<path d="M10 6.8c.4 1.8 1.4 2.8 3.2 3.2-1.8.4-2.8 1.4-3.2 3.2-.4-1.8-1.4-2.8-3.2-3.2 1.8-.4 2.8-1.4 3.2-3.2Z" fill="currentColor"/>',
+  "</svg>",
+].join("");
+
 const NICHIRIN_CONTROL = [
   '<span class="kisatsutai-nichirin-control" aria-hidden="true">',
   '<span class="kisatsutai-nichirin-icon kisatsutai-nichirin-icon--send">',
@@ -359,10 +367,11 @@ const LOCATION_ICON = [
   "</span>",
 ].join("");
 
-let runtimeRef = null;
+let apiRef = null;
 let preferences = { ...DEFAULTS };
 let observer = null;
 let styleElement = null;
+let settingsHandle = null;
 let scheduledFrame = 0;
 let navHandler = null;
 let missionStrip = null;
@@ -374,6 +383,7 @@ let sessionStates = new Map();
 let lastActiveSessionKey = "";
 let draftSessionCounter = 0;
 let navigationClickHandler = null;
+let settingsSurfaceHandler = null;
 let sendActionHandlers = new Map();
 let composerKeyHandlers = new Map();
 let breathingControlHandlers = new Map();
@@ -492,7 +502,7 @@ function ensureSessionState(key) {
   ].filter(Boolean);
   const location = LOCATION_ROSTER[hashString(`${stableKey}:location`) % LOCATION_ROSTER.length];
   const mission = MISSION_ROSTER[hashString(`${stableKey}:mission`) % MISSION_ROSTER.length];
-  const storedCounts = runtimeRef?.storage?.get?.(SESSION_COUNT_STORAGE_KEY, {}) || {};
+  const storedCounts = apiRef?.storage?.get?.(SESSION_COUNT_STORAGE_KEY, {}) || {};
   const storedCount = clampSquadCount(storedCounts[stableKey]);
   const state = {
     key: stableKey,
@@ -511,13 +521,13 @@ function rememberSquadCount(state, count) {
   const nextCount = clampSquadCount(count);
   if (!state || !nextCount || state.observedSquadCount === nextCount) return;
   state.observedSquadCount = nextCount;
-  const existing = runtimeRef?.storage?.get?.(SESSION_COUNT_STORAGE_KEY, {}) || {};
+  const existing = apiRef?.storage?.get?.(SESSION_COUNT_STORAGE_KEY, {}) || {};
   const next = { ...existing, [state.key]: nextCount };
   const entries = Object.entries(next);
   const bounded = entries.length > 160
     ? Object.fromEntries(entries.slice(entries.length - 160))
     : next;
-  runtimeRef?.storage?.set?.(SESSION_COUNT_STORAGE_KEY, bounded);
+  apiRef?.storage?.set?.(SESSION_COUNT_STORAGE_KEY, bounded);
 }
 
 function getActiveSessionContext() {
@@ -570,6 +580,9 @@ function getDeclaredSquadCount(element) {
 }
 
 function detectLiveSquadCount() {
+  const summaryCount = getSummarySquadCount();
+  if (summaryCount) return summaryCount;
+
   const surface = document.querySelector("[data-app-shell-main-content-layout]")
     || document.querySelector("main, [role='main']");
   if (!(surface instanceof HTMLElement)) return 0;
@@ -723,16 +736,16 @@ function clearCharacterAssets() {
   for (const property of THEME_CSS_VARS) root.style.removeProperty(property);
 }
 
-function getPreferences(runtime) {
+function getPreferences(api) {
   return {
     enabled: true,
-    narrative: runtime.storage.get("narrative", DEFAULTS.narrative) !== false,
-    motion: runtime.storage.get("motion", DEFAULTS.motion) !== false,
-    breathing: BREATHING_OPTIONS.some((option) => option.id === runtime.storage.get("breathing"))
-      ? runtime.storage.get("breathing")
+    narrative: api.storage.get("narrative", DEFAULTS.narrative) !== false,
+    motion: api.storage.get("motion", DEFAULTS.motion) !== false,
+    breathing: BREATHING_OPTIONS.some((option) => option.id === api.storage.get("breathing"))
+      ? api.storage.get("breathing")
       : DEFAULTS.breathing,
-    density: ["immersive", "quiet"].includes(runtime.storage.get("density"))
-      ? runtime.storage.get("density")
+    density: ["immersive", "quiet"].includes(api.storage.get("density"))
+      ? api.storage.get("density")
       : DEFAULTS.density,
   };
 }
@@ -752,7 +765,7 @@ function rollRandomBreathing(previous = getActiveBreathing()) {
 function savePreferences(next) {
   preferences = { ...preferences, ...next };
   for (const [key, value] of Object.entries(next)) {
-    runtimeRef?.storage.set(key, value);
+    apiRef?.storage.set(key, value);
   }
   applyRootState();
   schedulePatch();
@@ -763,6 +776,41 @@ function isMissionSurfaceActive() {
   return findComposer() instanceof HTMLElement;
 }
 
+function isSettingsSurfaceActive() {
+  const root = document.documentElement;
+  return root.dataset.codexppSettingsSurface === "true"
+    || window.__codexppSettingsSurfaceVisible === true;
+}
+
+function isOwnSettingsPageButton(button) {
+  if (!(button instanceof HTMLElement)) return false;
+  const tweakId = apiRef?.manifest?.id || "dev.local.demon-slayer-codex-theme";
+  return String(button.dataset.codexpp || "").includes(`nav-page-${tweakId}:`);
+}
+
+function syncSettingsPageShortcutVisibility() {
+  const groups = document.querySelectorAll('[data-codexpp="pages-group"]');
+  for (const group of groups) {
+    if (!(group instanceof HTMLElement)) continue;
+    const pageButtons = Array.from(group.querySelectorAll('[data-codexpp^="nav-page-"]'));
+    for (const button of pageButtons) {
+      if (isOwnSettingsPageButton(button) && !button.hidden) button.hidden = true;
+    }
+    const onlyOwnPageButtons = pageButtons.length > 0 && pageButtons.every(isOwnSettingsPageButton);
+    if (group.hidden !== onlyOwnPageButtons) group.hidden = onlyOwnPageButtons;
+  }
+}
+
+function restoreSettingsPageShortcutVisibility() {
+  for (const group of document.querySelectorAll('[data-codexpp="pages-group"]')) {
+    if (!(group instanceof HTMLElement)) continue;
+    group.hidden = false;
+    for (const button of group.querySelectorAll('[data-codexpp^="nav-page-"]')) {
+      if (isOwnSettingsPageButton(button)) button.hidden = false;
+    }
+  }
+}
+
 function removeInjectedThemeDecorations() {
   for (const node of [...injectedNodes]) {
     if (!node || node === styleElement) continue;
@@ -771,6 +819,22 @@ function removeInjectedThemeDecorations() {
   }
   missionStrip = null;
   ravenStatus = null;
+}
+
+function applySettingsSurfaceState() {
+  const root = document.documentElement;
+  root.removeAttribute(ROOT_SURFACE_ATTR);
+  root.removeAttribute(ROOT_THEME_ATTR);
+  root.removeAttribute(ROOT_BREATHING_MODE_ATTR);
+  root.removeAttribute(ROOT_MOTION_ATTR);
+  root.removeAttribute(ROOT_DENSITY_ATTR);
+  root.removeAttribute(ROOT_STATE_ATTR);
+  root.removeAttribute(ROOT_DIFFICULTY_ATTR);
+  restoreNarrativePatches();
+  removeInjectedThemeDecorations();
+  clearMarks();
+  clearCharacterAssets();
+  syncSettingsPageShortcutVisibility();
 }
 
 function applyNativeSurfaceState() {
@@ -815,6 +879,10 @@ function applyRootState() {
     clearMarks();
     return;
   }
+  if (isSettingsSurfaceActive()) {
+    applySettingsSurfaceState();
+    return;
+  }
   if (isMissionSurfaceActive()) applyMissionSurfaceState();
   else applyNativeSurfaceState();
 }
@@ -840,13 +908,18 @@ function schedulePatch() {
     try {
       patchDom();
     } catch (error) {
-      runtimeRef?.log.warn("theme patch skipped", String(error));
+      apiRef?.log.warn("theme patch skipped", String(error));
     }
   });
 }
 
 function patchDom() {
   if (!preferences.enabled) return;
+  syncSettingsPageShortcutVisibility();
+  if (isSettingsSurfaceActive()) {
+    applySettingsSurfaceState();
+    return;
+  }
   if (!isMissionSurfaceActive()) {
     applyNativeSurfaceState();
     return;
@@ -1413,6 +1486,16 @@ function getSummaryPanel() {
 
 function getSummarySectionKey(section) {
   if (!(section instanceof HTMLElement)) return "";
+  try {
+    let fiber = apiRef?.react?.getFiber?.(section) || null;
+    for (let depth = 0; fiber && depth < 8; depth += 1, fiber = fiber.return) {
+      const key = fiber.memoizedProps?.sectionKey;
+      if (typeof key === "string") return key;
+    }
+  } catch {
+    /* use the accessible heading fallback below */
+  }
+
   const heading = normalizeText(
     section.querySelector("header button[aria-expanded], button[aria-expanded]")?.textContent,
   );
@@ -1429,6 +1512,51 @@ function getSummarySections(panel = getSummaryPanel()) {
     .filter((section) => section instanceof HTMLElement)
     .map((section) => ({ section, key: getSummarySectionKey(section) }))
     .filter((entry) => entry.key);
+}
+
+function findBackgroundAgents(section) {
+  if (!(section instanceof HTMLElement)) return { found: false, agents: [] };
+  let fiber = null;
+  try {
+    fiber = apiRef?.react?.getFiber?.(section) || null;
+  } catch {
+    return { found: false, agents: [] };
+  }
+  const roots = [];
+  for (let depth = 0, cursor = fiber; cursor && depth < 5; depth += 1, cursor = cursor.return) {
+    roots.push(cursor);
+  }
+  const seen = new Set();
+  const queue = [...roots];
+  let best = null;
+  while (queue.length && seen.size < 600) {
+    const current = queue.shift();
+    if (!current || seen.has(current)) continue;
+    seen.add(current);
+    const agents = current.memoizedProps?.backgroundAgents;
+    if (Array.isArray(agents) && (!best || agents.length > best.length)) best = agents;
+    if (current.child) queue.push(current.child);
+    if (current.sibling) queue.push(current.sibling);
+  }
+  return best ? { found: true, agents: best } : { found: false, agents: [] };
+}
+
+function getSummarySquadCount() {
+  const entry = getSummarySections().find(({ key }) => key === "background-subagents");
+  if (!entry) return 0;
+  const result = findBackgroundAgents(entry.section);
+  if (!result.found) return 0;
+  const identities = new Set();
+  result.agents.forEach((agent, index) => {
+    identities.add(
+      agent?.conversationId
+        || agent?.threadId
+        || agent?.id
+        || agent?.name
+        || `agent:${index}`,
+    );
+  });
+  return clampSquadCount(identities.size + 1);
 }
 
 function patchSummaryHeading(section, key) {
@@ -1482,6 +1610,23 @@ function getEnvironmentBranchControl(section) {
     'button[title="Switch branch"], button[title*="branch" i], button[title*="分支"]',
   );
   if (direct instanceof HTMLButtonElement) return direct;
+  for (const button of section.querySelectorAll("button")) {
+    if (!(button instanceof HTMLButtonElement)) continue;
+    try {
+      let fiber = apiRef?.react?.getFiber?.(button) || null;
+      for (let depth = 0; fiber && depth < 7; depth += 1, fiber = fiber.return) {
+        const props = fiber.memoizedProps || {};
+        if (
+          "gitRoot" in props
+          && "hostConfig" in props
+          && "renderControl" in props
+          && "localConversationId" in props
+        ) return button;
+      }
+    } catch {
+      /* skip this candidate */
+    }
+  }
   return null;
 }
 
@@ -2342,6 +2487,183 @@ function removeRavenStatus() {
   ravenStatus = null;
 }
 
+function titleBlock(title, description) {
+  const wrap = document.createElement("div");
+  wrap.className = "kisatsutai-settings-title";
+  const eyebrow = document.createElement("div");
+  eyebrow.className = "kisatsutai-settings-eyebrow";
+  eyebrow.textContent = "KISATSUTAI / UNIFORM";
+  const heading = document.createElement("div");
+  heading.className = "text-base font-medium text-token-text-primary kisatsutai-settings-heading";
+  heading.textContent = title;
+  const body = document.createElement("div");
+  body.className = "text-token-text-secondary text-sm kisatsutai-settings-description";
+  body.textContent = description;
+  wrap.append(eyebrow, heading, body);
+  return wrap;
+}
+
+function card() {
+  const element = document.createElement("div");
+  element.className = "kisatsutai-native-settings-card";
+  return element;
+}
+
+function row(label, description, control) {
+  const element = document.createElement("div");
+  element.className = "kisatsutai-native-settings-row";
+  const left = document.createElement("div");
+  left.className = "flex min-w-0 flex-col gap-1";
+  const name = document.createElement("div");
+  name.className = "min-w-0 text-sm text-token-text-primary";
+  name.textContent = label;
+  const detail = document.createElement("div");
+  detail.className = "text-token-text-secondary min-w-0 text-sm";
+  detail.textContent = description;
+  left.append(name, detail);
+  element.append(left, control);
+  return element;
+}
+
+function switchControl(value, label, onChange) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "kisatsutai-native-switch";
+  button.setAttribute("role", "switch");
+  button.setAttribute("aria-label", label);
+  const track = document.createElement("span");
+  track.className = "kisatsutai-native-switch-track";
+  const thumb = document.createElement("span");
+  thumb.className = "kisatsutai-native-switch-thumb";
+  track.appendChild(thumb);
+  button.appendChild(track);
+
+  let current = !!value;
+  const sync = () => {
+    button.setAttribute("aria-checked", String(current));
+    button.dataset.on = String(current);
+  };
+  button.addEventListener("click", () => {
+    current = !current;
+    sync();
+    onChange(current);
+  });
+  sync();
+  return button;
+}
+
+function selectControl(value, label, options, onChange) {
+  const select = document.createElement("select");
+  select.className = "kisatsutai-native-select";
+  select.setAttribute("aria-label", label);
+  for (const option of options) {
+    const node = document.createElement("option");
+    node.value = option.value;
+    node.textContent = option.label;
+    node.selected = option.value === value;
+    select.appendChild(node);
+  }
+  select.addEventListener("change", () => onChange(select.value));
+  return select;
+}
+
+function renderPreview() {
+  const preview = document.createElement("section");
+  preview.className = "kisatsutai-settings-preview";
+  preview.setAttribute("aria-label", "主题预览");
+
+  const header = document.createElement("div");
+  header.className = "kisatsutai-preview-header";
+  const mission = document.createElement("div");
+  mission.innerHTML = [
+    '<span class="kisatsutai-preview-kicker">讨伐令 / NO. 0147</span>',
+    '<strong>西北山道 · 失踪案调查</strong>',
+  ].join("");
+  const rank = document.createElement("span");
+  rank.className = "kisatsutai-preview-rank";
+  rank.textContent = "甲";
+  header.append(mission, rank);
+
+  const route = document.createElement("div");
+  route.className = "kisatsutai-preview-route";
+  for (const [state, label] of [
+    ["done", "受命"],
+    ["done", "侦察"],
+    ["active", "追踪"],
+    ["pending", "归档"],
+  ]) {
+    const step = document.createElement("span");
+    step.dataset.state = state;
+    step.innerHTML = '<i aria-hidden="true"></i><b>' + label + "</b>";
+    route.appendChild(step);
+  }
+
+  const squad = document.createElement("div");
+  squad.className = "kisatsutai-preview-squad";
+  squad.innerHTML = [
+    '<span class="kisatsutai-squad-label">出战小队</span>',
+    '<span class="kisatsutai-avatar-stack" aria-label="负责队员：灶门炭治郎、我妻善逸">',
+    '<i class="kisatsutai-agent-avatar" data-character="tanjiro" aria-hidden="true"></i>',
+    '<i class="kisatsutai-agent-avatar" data-character="zenitsu" aria-hidden="true"></i>',
+    "</span>",
+    "<span>炭治郎统筹 · 善逸侦察</span>",
+  ].join("");
+
+  preview.append(header, route, squad);
+  return preview;
+}
+
+function renderSettings(root) {
+  root.innerHTML = "";
+  root.classList.remove("kisatsutai-settings");
+  root.classList.add("kisatsutai-native-settings");
+
+  const appearance = card();
+  appearance.append(
+    row(
+      "界面氛围",
+      "沉浸使用会话地点背景与中央阅读光场；安静恢复 Codex 原生背景。",
+      selectControl(
+        preferences.density,
+        "选择界面氛围",
+        [
+          { value: "immersive", label: "沉浸（默认）" },
+          { value: "quiet", label: "安静（原生背景）" },
+        ],
+        (density) => savePreferences({ density }),
+      ),
+    ),
+    row(
+      "剧情化文案",
+      "只在核心会话页保留接取讨伐、任务案卷、出战小队与渡鸦情报等核心名称。",
+      switchControl(preferences.narrative, "启用剧情化文案", (narrative) => savePreferences({ narrative })),
+    ),
+    row(
+      "状态动效",
+      "控制核心会话页的任务状态、呼吸选择与发送斩击反馈；关闭后恢复 Codex 原生发送控件。",
+      switchControl(preferences.motion, "启用状态动效", (motion) => savePreferences({ motion })),
+    ),
+  );
+
+  const reset = document.createElement("button");
+  reset.type = "button";
+  reset.className = "kisatsutai-native-reset";
+  reset.textContent = "恢复默认（沉浸）";
+  reset.addEventListener("click", () => {
+    savePreferences({ ...DEFAULTS });
+    renderSettings(root);
+  });
+
+  const footer = document.createElement("div");
+  footer.className = "kisatsutai-native-settings-footer";
+  const note = document.createElement("p");
+  note.textContent = "发送、终端、文件、分支与搜索等操作始终使用 Codex 原生名称和控件。";
+  footer.append(note, reset);
+
+  root.append(appearance, footer);
+  return () => root.classList.remove("kisatsutai-native-settings");
+}
+
 function startObserver() {
   if (observer) return;
   observer = new MutationObserver(schedulePatch);
@@ -2371,11 +2693,14 @@ function startObserver() {
       "data-token-limit",
       "data-token-total",
       "data-context-limit",
+      "data-codexpp-settings-surface",
     ],
   });
   navHandler = schedulePatch;
   window.addEventListener("popstate", navHandler);
   window.addEventListener("hashchange", navHandler);
+  settingsSurfaceHandler = schedulePatch;
+  window.addEventListener("codexpp:settings-surface", settingsSurfaceHandler);
   navigationClickHandler = (event) => {
     const target = event.target instanceof Element ? event.target : null;
     const task = target?.closest(
@@ -2408,6 +2733,10 @@ function cleanup() {
     window.removeEventListener("hashchange", navHandler);
   }
   navHandler = null;
+  if (settingsSurfaceHandler) {
+    window.removeEventListener("codexpp:settings-surface", settingsSurfaceHandler);
+  }
+  settingsSurfaceHandler = null;
   if (navigationClickHandler) {
     document.removeEventListener("click", navigationClickHandler, true);
   }
@@ -2436,6 +2765,9 @@ function cleanup() {
   injectedNodes.clear();
   removeMissionStrip();
   removeRavenStatus();
+  restoreSettingsPageShortcutVisibility();
+  settingsHandle?.unregister?.();
+  settingsHandle = null;
   document.documentElement.removeAttribute(ROOT_THEME_ATTR);
   document.documentElement.removeAttribute(ROOT_BREATHING_MODE_ATTR);
   document.documentElement.removeAttribute(ROOT_SURFACE_ATTR);
@@ -2449,106 +2781,34 @@ function cleanup() {
   draftSessionCounter = 0;
   resolvedRandomBreathing = DEFAULTS.breathing;
   styleElement = null;
-  runtimeRef = null;
+  apiRef = null;
 }
 
-const THEME_RUNTIME_VERSION = "0.5.21";
-const STANDALONE_RUNTIME_KEY = "__demonSlayerCodexThemeRuntime";
-const STANDALONE_STORAGE_PREFIX = "demon-slayer-codex-theme:";
-
-function startTheme(runtime) {
-  if (!isPrimaryCodexRenderer()) {
-    runtime.log.debug("skipping non-primary Codex renderer", location.href);
-    return false;
-  }
-  runtimeRef = runtime;
-  runtime.storage.delete("enabled");
-  preferences = getPreferences(runtime);
-  if (preferences.breathing === "random") rollRandomBreathing("");
-  ensureStyle();
-  applyRootState();
-  startObserver();
-  schedulePatch();
-  runtime.log.info("鬼杀队任务中枢已就位", preferences);
-  return true;
-}
-
-function createStandaloneStorage() {
-  const memory = new Map();
-  return {
-    get(key, fallback) {
-      const storageKey = `${STANDALONE_STORAGE_PREFIX}${key}`;
-      try {
-        const raw = window.localStorage.getItem(storageKey);
-        return raw === null ? fallback : JSON.parse(raw);
-      } catch {
-        return memory.has(key) ? memory.get(key) : fallback;
-      }
-    },
-    set(key, value) {
-      memory.set(key, value);
-      try {
-        window.localStorage.setItem(
-          `${STANDALONE_STORAGE_PREFIX}${key}`,
-          JSON.stringify(value),
-        );
-      } catch {
-        // The in-memory value still keeps this page session functional.
-      }
-    },
-    delete(key) {
-      memory.delete(key);
-      try {
-        window.localStorage.removeItem(`${STANDALONE_STORAGE_PREFIX}${key}`);
-      } catch {
-        // Ignore storage restrictions in secondary Electron renderers.
-      }
-    },
-  };
-}
-
-function createBigPizzaRuntimeContext() {
-  const prefix = "[鬼杀队主题]";
-  return {
-    storage: createStandaloneStorage(),
-    log: {
-      debug: (...values) => console.debug(prefix, ...values),
-      info: (...values) => console.info(prefix, ...values),
-      warn: (...values) => console.warn(prefix, ...values),
-      error: (...values) => console.error(prefix, ...values),
-    },
-  };
-}
-
-function startBigPizzaRuntime() {
-  try {
-    window[STANDALONE_RUNTIME_KEY]?.stop?.();
-  } catch (error) {
-    console.warn("[鬼杀队主题] 清理旧运行时失败", error);
-  }
-
-  let stopped = false;
-  const context = createBigPizzaRuntimeContext();
-  const runtime = {
-    version: THEME_RUNTIME_VERSION,
-    platform: "BigPizzaV3/CodexPlusPlus user script",
-    start() {
-      if (!stopped) return;
-      stopped = false;
-      startTheme(context);
-    },
-    stop() {
-      if (stopped) return;
-      stopped = true;
-      cleanup();
-    },
-    setPreference(key, value) {
-      context.storage.set(key, value);
-      if (!stopped) savePreferences({ [key]: value });
-    },
-  };
-  window[STANDALONE_RUNTIME_KEY] = runtime;
-  startTheme(context);
-}
-
-startBigPizzaRuntime();
+module.exports = {
+  start(api) {
+    if (api.process !== "renderer" || !api.settings) return;
+    if (!isPrimaryCodexRenderer()) {
+      api.log.debug("skipping non-primary Codex renderer", location.href);
+      return;
+    }
+    apiRef = api;
+    api.storage.delete("enabled");
+    preferences = getPreferences(api);
+    if (preferences.breathing === "random") rollRandomBreathing("");
+    ensureStyle();
+    applyRootState();
+    settingsHandle = api.settings.registerPage({
+      id: "uniform",
+      title: "鬼杀队任务中枢",
+      description: "任务页氛围、剧情文案与状态反馈。",
+      iconSvg: PAGE_ICON,
+      render: renderSettings,
+    });
+    startObserver();
+    schedulePatch();
+    api.log.info("鬼杀队任务中枢已就位", preferences);
+  },
+  stop() {
+    cleanup();
+  },
+};

@@ -2,20 +2,20 @@
 set -eu
 
 THEME_REPO="anson-no-bug/codex-themes-demon-slayer"
-THEME_URL="https://raw.githubusercontent.com/$THEME_REPO/main/index.js"
-CODEXPLUSPLUS_REPO="BigPizzaV3/CodexPlusPlus"
-CODEXPLUSPLUS_LATEST="https://github.com/$CODEXPLUSPLUS_REPO/releases/latest"
-USER_CONFIG_HOME=${XDG_CONFIG_HOME:-"$HOME/.config"}
-USER_SCRIPT_DIR="$USER_CONFIG_HOME/Codex++/user_scripts"
-USER_SCRIPT_PATH="$USER_SCRIPT_DIR/demon-slayer-codex-theme.js"
-USER_SCRIPT_CONFIG="$USER_CONFIG_HOME/Codex++/user_scripts.json"
-APP_INSTALL_ROOT=${CODEXPLUSPLUS_APP_DIR:-/Applications}
-LAUNCHER_APP="$APP_INSTALL_ROOT/Codex++.app"
-MANAGER_APP="$APP_INSTALL_ROOT/Codex++ 管理工具.app"
+THEME_REF=${DEMON_SLAYER_THEME_REF:-main}
+THEME_ARCHIVE_URL="https://codeload.github.com/${THEME_REPO}/tar.gz/${THEME_REF}"
+CODEXPP_REPO="b-nnett/codex-plusplus"
+CODEXPP_FORMULA="b-nnett/codex-plusplus/codexplusplus"
+CODEXPP_BOOTSTRAP_URL="https://raw.githubusercontent.com/${CODEXPP_REPO}/main/install.sh"
+THEME_SOURCE_PARENT=${DEMON_SLAYER_THEME_SOURCE_PARENT:-"$HOME/Library/Application Support/codex-plusplus/sources"}
+THEME_SOURCE_DIR="$THEME_SOURCE_PARENT/codex-themes-demon-slayer"
+THEME_TWEAK_DIR=${DEMON_SLAYER_THEME_TWEAK_DIR:-"$HOME/Library/Application Support/codex-plusplus/tweaks"}
+THEME_TWEAK_LINK="$THEME_TWEAK_DIR/dev.local.demon-slayer-codex-theme"
+CODEXPP_STATE_FILE="$HOME/Library/Application Support/codex-plusplus/state.json"
 CHECK_ONLY=0
-TEMP_ROOT=""
-MOUNT_DIR=""
-MOUNTED=0
+THEME_WORK_DIR=""
+THEME_DOWNLOADED_SOURCE=""
+CODEXPP_BIN=""
 
 say() {
   printf '%s\n' "[鬼杀队主题] $*"
@@ -38,23 +38,19 @@ show_help() {
   printf '%s\n' \
     '用法：sh install.sh [--check]' \
     '' \
-    '  无参数    检测并安装/更新 BigPizzaV3 Codex++，再从 GitHub 安装主题用户脚本' \
-    '  --check   只检查现有 Codex++ 与主题，不下载、不修改文件' \
+    '  无参数    安装或修复 b-nnett Codex++，再安装鬼杀队主题' \
+    '  --check   只检查 Codex++、签名模式、主题源码和 tweak 链接' \
     '' \
     '可选环境变量：' \
-    '  CODEXPLUSPLUS_APP_DIR   覆盖 Codex++ app 安装目录（默认 /Applications）' \
-    '  XDG_CONFIG_HOME         覆盖 BigPizzaV3 配置根目录（默认 ~/.config）'
+    '  DEMON_SLAYER_THEME_REF            主题 Git ref（默认 main）' \
+    '  DEMON_SLAYER_THEME_SOURCE_PARENT  主题源码父目录' \
+    '  DEMON_SLAYER_THEME_TWEAK_DIR      Codex++ tweaks 目录' \
+    '  CODEXPLUSPLUS_BIN                 指定 codexplusplus 可执行文件'
 }
 
 cleanup() {
-  if [ "$MOUNTED" -eq 1 ] && [ -n "$MOUNT_DIR" ]; then
-    hdiutil detach "$MOUNT_DIR" -quiet >/dev/null 2>&1 || true
-    MOUNTED=0
-  fi
-  if [ -n "$TEMP_ROOT" ] && [ -d "$TEMP_ROOT" ]; then
-    [ -f "$TEMP_ROOT/CodexPlusPlus.dmg" ] && rm -f "$TEMP_ROOT/CodexPlusPlus.dmg"
-    [ -d "$TEMP_ROOT/mount" ] && rmdir "$TEMP_ROOT/mount" 2>/dev/null || true
-    rmdir "$TEMP_ROOT" 2>/dev/null || true
+  if [ -n "$THEME_WORK_DIR" ] && [ -d "$THEME_WORK_DIR" ]; then
+    rm -rf "$THEME_WORK_DIR"
   fi
 }
 
@@ -69,161 +65,208 @@ esac
 
 [ "$(uname -s)" = "Darwin" ] || fail "当前安装器只支持 macOS Codex Desktop。"
 
-for dependency in curl hdiutil ditto codesign mktemp grep sed wc; do
+for dependency in curl tar mktemp grep mkdir mv rm ln readlink date; do
   has_command "$dependency" || fail "系统缺少必要命令：$dependency"
 done
 
-CODEX_APP=""
-for candidate in \
-  "/Applications/ChatGPT.app" \
-  "/Applications/Codex.app" \
-  "$HOME/Applications/ChatGPT.app" \
-  "$HOME/Applications/Codex.app"
-do
-  if [ -d "$candidate" ]; then
-    CODEX_APP=$candidate
-    break
+find_codex_app() {
+  for candidate in \
+    "/Applications/ChatGPT.app" \
+    "/Applications/Codex.app" \
+    "$HOME/Applications/ChatGPT.app" \
+    "$HOME/Applications/Codex.app"
+  do
+    if [ -d "$candidate" ]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+resolve_codexplusplus() {
+  if [ -n "${CODEXPLUSPLUS_BIN:-}" ] && [ -x "$CODEXPLUSPLUS_BIN" ]; then
+    CODEXPP_BIN=$CODEXPLUSPLUS_BIN
+    return 0
   fi
-done
+
+  command_path=$(command -v codexplusplus 2>/dev/null || true)
+  for candidate in \
+    "$command_path" \
+    "/opt/homebrew/bin/codexplusplus" \
+    "/usr/local/bin/codexplusplus" \
+    "$HOME/.local/bin/codexplusplus" \
+    "$HOME/.bun/bin/codexplusplus"
+  do
+    if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+      CODEXPP_BIN=$candidate
+      return 0
+    fi
+  done
+  return 1
+}
+
+resolve_brew() {
+  command_path=$(command -v brew 2>/dev/null || true)
+  for candidate in "$command_path" "/opt/homebrew/bin/brew" "/usr/local/bin/brew"; do
+    if [ -n "$candidate" ] && [ -x "$candidate" ]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+  return 1
+}
+
+node_is_usable() {
+  has_command node || return 1
+  has_command npm || return 1
+  node_major=$(node -p "Number(process.versions.node.split('.')[0])" 2>/dev/null || true)
+  case "$node_major" in
+    ""|*[!0-9]*) return 1 ;;
+  esac
+  [ "$node_major" -ge 20 ]
+}
+
+bootstrap_codexplusplus() {
+  resolve_codexplusplus && return 0
+  [ "$CHECK_ONLY" -eq 0 ] || fail "未找到 b-nnett codexplusplus；请先运行无参数安装。"
+
+  brew_bin=$(resolve_brew || true)
+  if [ -n "$brew_bin" ]; then
+    say "未找到 Codex++；通过 Homebrew 安装 ${CODEXPP_FORMULA}。"
+    "$brew_bin" install "$CODEXPP_FORMULA" || fail "Homebrew 安装 b-nnett Codex++ 失败。"
+    resolve_codexplusplus || fail "Homebrew 已完成，但仍找不到 codexplusplus 命令。"
+    return 0
+  fi
+
+  if node_is_usable; then
+    has_command bash || fail "b-nnett 源码安装器需要 bash。"
+    THEME_WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/demon-slayer-codex-theme.XXXXXX")
+    bootstrap_path="$THEME_WORK_DIR/codex-plusplus-install.sh"
+    say "未找到 Codex++；下载 b-nnett 官方源码安装器。"
+    curl -fsSL "$CODEXPP_BOOTSTRAP_URL" -o "$bootstrap_path" \
+      || fail "无法下载 b-nnett Codex++ 安装器。"
+    bash "$bootstrap_path" --local \
+      || fail "b-nnett Codex++ 源码安装失败。"
+    resolve_codexplusplus || fail "源码安装完成，但仍找不到 codexplusplus 命令。"
+    return 0
+  fi
+
+  fail "未安装 Codex++，且本机没有 Homebrew，也没有 Node.js 20+ 与 npm。请先安装其中一组依赖后重试。"
+}
+
+codexplusplus_status() {
+  "$CODEXPP_BIN" status 2>&1 || true
+}
+
+check_patched_runtime() {
+  status_output=$(codexplusplus_status)
+  printf '%s\n' "$status_output" | grep -q 'matches patched' \
+    || fail "b-nnett Codex++ 尚未正确修改 Codex。"
+  printf '%s\n' "$status_output" | grep -Eq 'sign mode:[[:space:]]+local-identity' \
+    || fail "Codex++ 当前不是稳定本地签名；完全退出 Codex 后运行：codexplusplus repair --force --local"
+}
+
+ensure_patched_runtime() {
+  if [ -f "$CODEXPP_STATE_FILE" ]; then
+    status_output=$(codexplusplus_status)
+    if printf '%s\n' "$status_output" | grep -q 'matches patched' \
+      && printf '%s\n' "$status_output" | grep -Eq 'sign mode:[[:space:]]+local-identity'; then
+      say "b-nnett Codex++ 已安装并使用稳定本地签名。"
+      return 0
+    fi
+    say "修复 b-nnett Codex++ 补丁并切换为稳定本地签名。"
+    "$CODEXPP_BIN" repair --force --local \
+      || fail "Codex++ repair --force --local 失败。"
+  else
+    say "安装 b-nnett Codex++，并使用稳定本地签名。"
+    "$CODEXPP_BIN" install --local \
+      || fail "Codex++ install --local 失败。"
+  fi
+  check_patched_runtime
+}
+
+download_theme() {
+  if [ -z "$THEME_WORK_DIR" ]; then
+    THEME_WORK_DIR=$(mktemp -d "${TMPDIR:-/tmp}/demon-slayer-codex-theme.XXXXXX")
+  fi
+  archive_path="$THEME_WORK_DIR/theme.tar.gz"
+  extract_path="$THEME_WORK_DIR/source"
+  mkdir -p "$extract_path"
+  say "下载 ${THEME_REPO}@${THEME_REF}。"
+  curl -fsSL "$THEME_ARCHIVE_URL" -o "$archive_path" \
+    || fail "主题下载失败：$THEME_ARCHIVE_URL"
+  tar -xzf "$archive_path" -C "$extract_path" --strip-components 1 \
+    || fail "无法解压主题归档。"
+  [ -f "$extract_path/manifest.json" ] || fail "下载内容缺少 manifest.json。"
+  [ -f "$extract_path/index.js" ] || fail "下载内容缺少 index.js。"
+  "$CODEXPP_BIN" validate-tweak "$extract_path" \
+    || fail "下载的主题未通过 Codex++ 校验。"
+  THEME_DOWNLOADED_SOURCE=$extract_path
+}
+
+replace_theme_source() {
+  downloaded_source=$1
+  next_source="${THEME_SOURCE_DIR}.next"
+  previous_source="${THEME_SOURCE_DIR}.previous"
+
+  case "$THEME_SOURCE_DIR" in
+    "$THEME_SOURCE_PARENT"/*) ;;
+    *) fail "主题安装目录不在预期父目录内：$THEME_SOURCE_DIR" ;;
+  esac
+
+  mkdir -p "$THEME_SOURCE_PARENT"
+  rm -rf "$next_source"
+  mv "$downloaded_source" "$next_source"
+
+  rm -rf "$previous_source"
+  if [ -e "$THEME_SOURCE_DIR" ]; then
+    mv "$THEME_SOURCE_DIR" "$previous_source"
+  fi
+  mv "$next_source" "$THEME_SOURCE_DIR"
+}
+
+link_theme() {
+  mkdir -p "$THEME_TWEAK_DIR"
+  if [ -L "$THEME_TWEAK_LINK" ]; then
+    rm -f "$THEME_TWEAK_LINK"
+  elif [ -e "$THEME_TWEAK_LINK" ]; then
+    fail "tweak 目标已存在且不是符号链接，未覆盖：$THEME_TWEAK_LINK"
+  fi
+  ln -s "$THEME_SOURCE_DIR" "$THEME_TWEAK_LINK"
+  printf '%s\n' "$(date +%s)" > "$THEME_SOURCE_DIR/.codexpp-dev-reload"
+}
+
+check_theme_install() {
+  [ -f "$THEME_SOURCE_DIR/manifest.json" ] || fail "主题源码未安装：$THEME_SOURCE_DIR"
+  [ -f "$THEME_SOURCE_DIR/index.js" ] || fail "主题入口未安装：$THEME_SOURCE_DIR/index.js"
+  [ -L "$THEME_TWEAK_LINK" ] || fail "主题 tweak 链接不存在：$THEME_TWEAK_LINK"
+  link_target=$(readlink "$THEME_TWEAK_LINK" 2>/dev/null || true)
+  [ "$link_target" = "$THEME_SOURCE_DIR" ] \
+    || fail "主题 tweak 链接指向错误位置：$link_target"
+  "$CODEXPP_BIN" validate-tweak "$THEME_SOURCE_DIR" \
+    || fail "已安装主题未通过 Codex++ 校验。"
+}
+
+CODEX_APP=$(find_codex_app || true)
 [ -n "$CODEX_APP" ] || fail "未找到 Codex Desktop；请先安装并至少启动一次。"
 say "Codex Desktop：$CODEX_APP"
 
-if has_command codexplusplus; then
-  LEGACY_STATUS=$(codexplusplus status 2>&1 || true)
-  if printf '%s\n' "$LEGACY_STATUS" | grep -Eq 'matches patched|patched app|Installation root:'; then
-    fail "检测到 b-nnett/codex-plusplus 仍在修改 Codex。请先执行 codexplusplus uninstall，确认恢复原版后再运行本脚本。"
-  fi
-fi
-
-app_version() {
-  /usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$1/Contents/Info.plist" 2>/dev/null || printf 'unknown\n'
-}
-
-verify_app() {
-  app_path=$1
-  expected_id=$2
-  [ -d "$app_path" ] || return 1
-  actual_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app_path/Contents/Info.plist" 2>/dev/null || true)
-  [ "$actual_id" = "$expected_id" ] || return 1
-  codesign --verify --deep "$app_path" >/dev/null 2>&1 || return 1
-}
-
-find_latest_release() {
-  LATEST_URL=$(curl -fsSIL -o /dev/null -w '%{url_effective}' "$CODEXPLUSPLUS_LATEST") \
-    || fail "无法查询 BigPizzaV3 Codex++ 最新版本。"
-  case "$LATEST_URL" in
-    */releases/tag/*) ;;
-    *) fail "无法从 GitHub 最新版本地址解析 release tag：$LATEST_URL" ;;
-  esac
-  RELEASE_TAG=${LATEST_URL##*/}
-  RELEASE_VERSION=${RELEASE_TAG#v}
-  [ -n "$RELEASE_VERSION" ] || fail "GitHub release 版本为空。"
-}
-
-install_codexplusplus() {
-  case "$(uname -m)" in
-    arm64|aarch64) RELEASE_ARCH=arm64 ;;
-    x86_64|amd64) RELEASE_ARCH=x64 ;;
-    *) fail "BigPizzaV3 暂不支持当前 CPU 架构：$(uname -m)" ;;
-  esac
-
-  find_latest_release
-  INSTALLED_VERSION=missing
-  if verify_app "$LAUNCHER_APP" com.bigpizzav3.codexplusplus \
-    && verify_app "$MANAGER_APP" com.bigpizzav3.codexplusplus.manager; then
-    INSTALLED_VERSION=$(app_version "$LAUNCHER_APP")
-  fi
-
-  if [ "$INSTALLED_VERSION" = "$RELEASE_VERSION" ]; then
-    say "BigPizzaV3 Codex++ 已是最新版：$INSTALLED_VERSION"
-    return
-  fi
-
-  [ "$CHECK_ONLY" -eq 0 ] \
-    || fail "BigPizzaV3 Codex++ 未安装或不是最新版（本地 ${INSTALLED_VERSION}，远端 ${RELEASE_VERSION}）。"
-  [ -d "$APP_INSTALL_ROOT" ] || mkdir -p "$APP_INSTALL_ROOT"
-  [ -w "$APP_INSTALL_ROOT" ] \
-    || fail "没有写入 $APP_INSTALL_ROOT 的权限；请让 AI 在获得授权后安装，或设置 CODEXPLUSPLUS_APP_DIR。"
-
-  TEMP_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/demon-slayer-codex-theme.XXXXXX")
-  MOUNT_DIR="$TEMP_ROOT/mount"
-  mkdir -p "$MOUNT_DIR"
-  DMG_PATH="$TEMP_ROOT/CodexPlusPlus.dmg"
-  DMG_URL="https://github.com/$CODEXPLUSPLUS_REPO/releases/download/$RELEASE_TAG/CodexPlusPlus-$RELEASE_VERSION-macos-$RELEASE_ARCH.dmg"
-  say "下载 BigPizzaV3 Codex++ ${RELEASE_VERSION}（${RELEASE_ARCH}）。"
-  curl -fL --retry 2 --connect-timeout 20 "$DMG_URL" -o "$DMG_PATH" \
-    || fail "Codex++ 安装包下载失败：$DMG_URL"
-  hdiutil attach "$DMG_PATH" -nobrowse -readonly -mountpoint "$MOUNT_DIR" -quiet \
-    || fail "无法挂载 Codex++ DMG。"
-  MOUNTED=1
-
-  verify_app "$MOUNT_DIR/Codex++.app" com.bigpizzav3.codexplusplus \
-    || fail "DMG 内 Codex++.app 的签名或 bundle id 不正确。"
-  verify_app "$MOUNT_DIR/Codex++ 管理工具.app" com.bigpizzav3.codexplusplus.manager \
-    || fail "DMG 内管理工具的签名或 bundle id 不正确。"
-
-  say "安装 Codex++ 与管理工具到 ${APP_INSTALL_ROOT}。"
-  ditto --rsrc --extattr "$MOUNT_DIR/Codex++.app" "$LAUNCHER_APP"
-  ditto --rsrc --extattr "$MOUNT_DIR/Codex++ 管理工具.app" "$MANAGER_APP"
-  verify_app "$LAUNCHER_APP" com.bigpizzav3.codexplusplus \
-    || fail "安装后的 Codex++.app 完整性校验失败。"
-  verify_app "$MANAGER_APP" com.bigpizzav3.codexplusplus.manager \
-    || fail "安装后的管理工具完整性校验失败。"
-  say "BigPizzaV3 Codex++ 已安装：$(app_version "$LAUNCHER_APP")"
-}
-
-check_theme_script() {
-  [ -f "$USER_SCRIPT_PATH" ] || return 1
-  grep -q '__demonSlayerCodexThemeRuntime' "$USER_SCRIPT_PATH" || return 1
-  grep -q 'BigPizzaV3/CodexPlusPlus user script' "$USER_SCRIPT_PATH" || return 1
-  SCRIPT_SIZE=$(wc -c < "$USER_SCRIPT_PATH" | sed 's/[[:space:]]//g')
-  [ "${SCRIPT_SIZE:-0}" -gt 1000000 ] || return 1
-}
-
-install_theme_script() {
-  if [ "$CHECK_ONLY" -eq 1 ]; then
-    check_theme_script || fail "未找到有效的主题用户脚本：$USER_SCRIPT_PATH"
-    say "主题用户脚本校验通过：$USER_SCRIPT_PATH"
-    return
-  fi
-
-  mkdir -p "$USER_SCRIPT_DIR"
-  THEME_TEMP=$(mktemp "$USER_SCRIPT_DIR/.demon-slayer-codex-theme.XXXXXX")
-  say "从 GitHub main 下载主题用户脚本。"
-  if ! curl -fL --retry 2 --connect-timeout 20 "$THEME_URL" -o "$THEME_TEMP"; then
-    rm -f "$THEME_TEMP"
-    fail "主题下载失败：$THEME_URL"
-  fi
-  if ! grep -q '__demonSlayerCodexThemeRuntime' "$THEME_TEMP" \
-    || ! grep -q 'BigPizzaV3/CodexPlusPlus user script' "$THEME_TEMP"; then
-    rm -f "$THEME_TEMP"
-    fail "下载内容不是 BigPizzaV3 兼容主题，未覆盖现有安装。"
-  fi
-  SCRIPT_SIZE=$(wc -c < "$THEME_TEMP" | sed 's/[[:space:]]//g')
-  if [ "${SCRIPT_SIZE:-0}" -le 1000000 ]; then
-    rm -f "$THEME_TEMP"
-    fail "主题文件不完整（仅 $SCRIPT_SIZE bytes），未覆盖现有安装。"
-  fi
-  chmod 0644 "$THEME_TEMP"
-  mv -f "$THEME_TEMP" "$USER_SCRIPT_PATH"
-  check_theme_script || fail "安装后的主题用户脚本校验失败。"
-  say "主题已安装：$USER_SCRIPT_PATH"
-}
-
-install_codexplusplus
-install_theme_script
-
-if [ -f "$USER_SCRIPT_CONFIG" ]; then
-  if grep -Eq '"enabled"[[:space:]]*:[[:space:]]*false' "$USER_SCRIPT_CONFIG"; then
-    warn "BigPizzaV3 的用户脚本总开关当前关闭；请在管理工具中打开。"
-  fi
-  if grep -Eq '"user:demon-slayer-codex-theme\.js"[[:space:]]*:[[:space:]]*false' "$USER_SCRIPT_CONFIG"; then
-    warn "鬼杀队主题脚本当前被单独停用；请在管理工具中打开。"
-  fi
-fi
+bootstrap_codexplusplus
+say "b-nnett Codex++：$CODEXPP_BIN"
 
 if [ "$CHECK_ONLY" -eq 1 ]; then
-  say "检查完成：BigPizzaV3 Codex++ 与主题用户脚本均有效。"
-else
-  say "安装完成。请完全退出原 Codex，再从“Codex++”入口启动；不要直接打开 ChatGPT.app。"
+  check_patched_runtime
+  check_theme_install
+  say "检查通过：直接启动 Codex 时会加载鬼杀队主题。"
+  exit 0
 fi
+
+ensure_patched_runtime
+download_theme
+replace_theme_source "$THEME_DOWNLOADED_SOURCE"
+link_theme
+"$CODEXPP_BIN" safe-mode --off >/dev/null 2>&1 || warn "无法自动关闭 safe mode，请在 Codex++ 设置中确认主题已启用。"
+check_theme_install
+
+say "安装完成。完全退出后直接打开原 Codex；不需要单独的 Codex++ 启动器。"

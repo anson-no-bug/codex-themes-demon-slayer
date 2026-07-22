@@ -1,10 +1,15 @@
 {
   "name": "demon-slayer-codex-theme",
-  "version": "0.5.21",
+  "version": "0.5.20",
   "private": true,
-  "type": "module",
+  "type": "commonjs",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "check": "node scripts/check.mjs && sh -n install.sh"
+    "check": "node scripts/check.mjs",
+    "check:install": "sh -n install.sh",
+    "runtime-qa": "node scripts/runtime-qa.cjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.61.1"
   }
 }
