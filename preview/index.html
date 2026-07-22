@@ -262,7 +262,7 @@
               <div class="message-avatar message-avatar--seal" aria-hidden="true">令</div>
               <div class="message-body">
                 <header><b>任务指令</b><time>23:41</time></header>
-                <p>分析项目中的任务状态与交互入口。先调查 Codex++ 如何注入 renderer tweak，再由炭治郎统筹、善逸侦察、蝴蝶忍验证。</p>
+                <p>分析项目中的任务状态与交互入口。先验证 BigPizzaV3 用户脚本注入，再由炭治郎统筹、善逸侦察、蝴蝶忍验证。</p>
                 <div class="order-tags">
                   <span>保留原事件</span><span>可热重载</span><span>支持低动态</span>
                 </div>
@@ -273,7 +273,7 @@
               <div class="message-avatar message-avatar--crow" aria-hidden="true">◆</div>
               <div class="message-body">
                 <header><b>鎹鸦回报</b><time>23:42</time></header>
-                <p>已确认 Codex++ 通过追加 preload 加载 renderer tweak，DOM 变更应保持幂等，并在 <code>stop()</code> 中完整回收。</p>
+                <p>已确认 Codex++ 通过 CDP 加载用户脚本，DOM 变更保持幂等，并在脚本重载前由 <code>stop()</code> 完整回收。</p>
               </div>
             </article>
 
@@ -284,9 +284,9 @@
                 <span class="intel-card__status">鎹鸦侦察</span>
               </header>
               <div class="intel-path">
-                <span><i>01</i><b>加载器</b><small>极小 app.asar 入口补丁</small></span>
-                <span><i>02</i><b>运行时</b><small>主进程注册追加 preload</small></span>
-                <span><i>03</i><b>队服</b><small>DOM 观察与设置页注入</small></span>
+                <span><i>01</i><b>启动器</b><small>原版 Codex + 本机 CDP</small></span>
+                <span><i>02</i><b>运行时</b><small>用户脚本直接加载</small></span>
+                <span><i>03</i><b>队服</b><small>DOM 观察与局部主题</small></span>
               </div>
               <footer><span>来源：ARCHITECTURE.md</span><button type="button">展开案卷</button></footer>
             </article>
@@ -325,9 +325,9 @@
                 <span class="forge-card__live"><i></i>正在淬炼</span>
               </header>
               <pre aria-label="终端输出"><code><span class="prompt">›</span> npm run build
-<span class="muted">Built renderer tweak index.js</span>
-<span class="prompt">›</span> codexplusplus validate-tweak .
-<span class="success">✓ 鬼杀队任务中枢 is a valid Codex++ tweak</span></code></pre>
+<span class="muted">Built BigPizzaV3 user script index.js</span>
+<span class="prompt">›</span> npm run check
+<span class="success">✓ BigPizzaV3 user script entry is valid</span></code></pre>
             </article>
 
             <article class="route-card" data-kisatsutai-tool="route">

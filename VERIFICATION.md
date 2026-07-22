@@ -1,18 +1,27 @@
 # 验证记录
 
 日期：2026-07-22
-Codex++ 源码提交：`f98e7e9`
-Codex++ 版本：`1.0.0`
+BigPizzaV3 Codex++ 源码提交：`6fa0a57`
+目标发行版：`1.2.41`
 
 ## 构建与清单
 
 ```text
 ✓ CSS、十三张队员图、十二张对手图、十处任务地点背板与无惨透明 PNG 已嵌入 index.js
-✓ manifest 必填字段、semver、scope、permissions 与 CommonJS 生命周期有效
-✓ Codex++ 官方 validate-tweak：demon-slayer-codex-theme is a valid Codex++ tweak
+✓ index.js 为纯 BigPizzaV3 用户脚本，不含旧 manifest 或 CommonJS 生命周期
+✓ 运行时版本、平台标记、脚本语法与 install.sh 语法有效
+✓ 浏览器 QA 验证 BigPizza 热启停、会话展示、长文本输入和原生浮层隔离
 ```
 
-## 0.5.20 当前基线：输入时收起地点标签与 GitHub 安装验证
+## 0.5.21 当前基线：完全迁移到 BigPizzaV3
+
+- 删除旧 `manifest.json`、CommonJS `module.exports.start/stop`、设置页注册和 CLI tweak 安装链路；`index.js` 直接作为 BigPizza 用户脚本执行。
+- `window.__demonSlayerCodexThemeRuntime` 提供幂等启停和偏好状态；偏好改存 renderer `localStorage`，脚本重载前完整清理旧实例。
+- 安装器检测 macOS、Codex Desktop、CPU 架构、旧版冲突和系统工具；从 BigPizzaV3 Releases 安装/更新两个 app，并校验签名与 bundle id。
+- 主题从 GitHub `main` 原子更新到 `~/.config/Codex++/user_scripts/demon-slayer-codex-theme.js`，下载内容和体积校验通过后才覆盖。
+- 浏览器 QA 改为真实用户脚本加载方式；BigPizza 运行时、13 位角色、12 位对手、10 个地点、12 类任务、输入区聚焦、图片查看器 hover 与 Codex++ 弹窗隔离全部通过。
+
+## 0.5.20 基线：输入时收起地点标签与 GitHub 安装验证
 
 - Composer 的“任务地点”原先由绝对定位 `::before` 绘制，不参与原生编辑器排版；长文本进入右侧区域时必然发生重叠。
 - 地点标签现在只在 Composer 空闲时提供环境提示；编辑器获得焦点后直接停止绘制该伪元素，输入文字继续使用 Codex 原生宽度、换行和 padding，不注入额外占位或几何补丁。
@@ -109,7 +118,7 @@ Codex++ 版本：`1.0.0`
 - 沉浸与安静模式、390px 移动端均无横向溢出；安静模式不显示地点背板、任务条或额外阅读层。
 - `npm run build`、`npm run check` 与 `scripts/runtime-qa.cjs` 通过；截图见 `preview/runtime-qa-v058.png`、`preview/conversation-scrim-v058.png` 与 `preview/conversation-scrim-mobile-v058.png`。
 
-以下 0.4.x–0.5.19 内容保留为演进记录，不代表 0.5.20 当前行为。
+以下 0.4.x–0.5.20 内容基于已退役的旧运行时，仅保留为演进记录，不代表 0.5.21 当前安装或加载方式。
 
 ## 0.5.7 之前的历史 entry 生命周期记录
 

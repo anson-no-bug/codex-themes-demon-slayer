@@ -2,59 +2,41 @@
 
 ## 给 AI 的一句话
 
-> 请从 https://github.com/anson-no-bug/codex-themes-demon-slayer 安装并启用“鬼灭之刃 · 鬼杀队任务中枢”；先检查 Codex Desktop 与 Codex++，把仓库 clone 到独立安装目录，执行仓库校验并通过 Codex++ 启用，最后重启 Codex 验证会话页主题。
+> 请先检测并卸载旧的 b-nnett/codex-plusplus，确认 Codex Desktop 已恢复原版，然后执行并检查 `curl -fsSL https://raw.githubusercontent.com/anson-no-bug/codex-themes-demon-slayer/main/install.sh | sh`，最后必须从“Codex++”入口启动 Codex，确认用户脚本列表里的 `demon-slayer-codex-theme.js` 已加载且会话主题正常显示。
 
-## AI / 手动执行步骤
+## 安装命令
 
-1. 确认 Codex Desktop 已安装，并检查 Codex++：
+```sh
+curl -fsSL https://raw.githubusercontent.com/anson-no-bug/codex-themes-demon-slayer/main/install.sh | sh
+```
 
-   ```sh
-   codexplusplus status
-   ```
+安装器会：
 
-2. 如果没有 Codex++，先按 [Codex++ 官方仓库](https://github.com/b-nnett/codex-plusplus) 的当前说明安装；macOS 可使用：
+1. 检查 macOS、Codex Desktop、CPU 架构和系统工具。
+2. 如果旧 b-nnett 仍在修改 Codex，停止安装并要求先运行 `codexplusplus uninstall`，避免两套运行时同时接管。
+3. 从 [BigPizzaV3/CodexPlusPlus Releases](https://github.com/BigPizzaV3/CodexPlusPlus/releases) 安装或更新与本机架构匹配的 `Codex++.app` 和管理工具，并校验 bundle id 与签名。
+4. 从 GitHub `main` 下载主题到 `~/.config/Codex++/user_scripts/demon-slayer-codex-theme.js`，完整性校验通过后才覆盖旧主题。
 
-   ```sh
-   brew install b-nnett/codex-plusplus/codexplusplus
-   codexplusplus install
-   ```
+只检查现有安装：
 
-3. 下载到 Codex++ 的独立源码目录。SSH 可用时执行：
+```sh
+curl -fsSL https://raw.githubusercontent.com/anson-no-bug/codex-themes-demon-slayer/main/install.sh | sh -s -- --check
+```
 
-   ```sh
-   mkdir -p "$HOME/Library/Application Support/codex-plusplus/sources"
-   git clone git@github.com:anson-no-bug/codex-themes-demon-slayer.git "$HOME/Library/Application Support/codex-plusplus/sources/codex-themes-demon-slayer"
-   cd "$HOME/Library/Application Support/codex-plusplus/sources/codex-themes-demon-slayer"
-   ```
+## 启动和验证
 
-   SSH 不可用时改用：
+完全退出原 Codex，然后从 `/Applications/Codex++.app` 启动。不要直接打开 `ChatGPT.app`，否则 BigPizzaV3 不会注入用户脚本。
 
-   ```sh
-   mkdir -p "$HOME/Library/Application Support/codex-plusplus/sources"
-   git clone https://github.com/anson-no-bug/codex-themes-demon-slayer.git "$HOME/Library/Application Support/codex-plusplus/sources/codex-themes-demon-slayer"
-   cd "$HOME/Library/Application Support/codex-plusplus/sources/codex-themes-demon-slayer"
-   ```
+打开“Codex++ 管理工具”→“用户脚本”，确认：
 
-4. 校验并启用：
-
-   ```sh
-   codexplusplus validate-tweak .
-   codexplusplus dev .
-   ```
-
-   出现 `Codex++ dev link ready` 后即可关闭这个监听命令，开发链接会保留。
-
-5. 完全退出并重新打开 Codex，在 Settings → Codex++ → Tweaks 中确认“鬼灭之刃 · 鬼杀队任务中枢”已启用，再打开任意会话验证任务条、地点背景和呼吸法控件。
+- 用户脚本总开关已开启。
+- `demon-slayer-codex-theme.js` 已开启，状态为已加载。
+- 任意会话页出现任务条、地点背景、编队和呼吸法控件。
 
 ## 更新
 
-```sh
-git pull --ff-only
-codexplusplus validate-tweak .
-```
-
-然后重启 Codex。
+再次运行同一条安装命令即可同时检查 BigPizzaV3 最新版本并更新主题。
 
 ## 停用
 
-在 Codex++ 的 Tweaks 页面停用该主题；如需排查全部 tweak，可执行 `codexplusplus safe-mode`，恢复时执行 `codexplusplus safe-mode --off`。
+在“Codex++ 管理工具”→“用户脚本”中停用或删除 `demon-slayer-codex-theme.js`，再重启 Codex++。

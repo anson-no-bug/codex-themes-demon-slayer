@@ -4,7 +4,7 @@ node_modules/
 *.log
 preview/*.png
 preview/screenshots/
-!preview/art-gallery-v0520.png
-!preview/runtime-qa-v0520.png
-!preview/composer-surface-v0520.png
-!preview/conversation-scrim-mobile-v0520.png
+!preview/art-gallery-v0521.png
+!preview/runtime-qa-v0521.png
+!preview/composer-surface-v0521.png
+!preview/conversation-scrim-mobile-v0521.png
