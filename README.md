@@ -14,7 +14,7 @@ curl -fsSL https://raw.githubusercontent.com/anson-no-bug/codex-themes-demon-sla
 
 想交给 Codex 或其他能操作终端的 AI 时，可以直接说：
 
-> 请执行并检查 README 中的鬼杀队主题安装命令；完成后从 `/Applications/Codex++.app` 启动，并运行只读健康检查确认安装成功。
+> 请在 macOS 终端执行 `curl -fsSL https://raw.githubusercontent.com/anson-no-bug/codex-themes-demon-slayer/main/install.sh | sh`；安装完成后从 `/Applications/Codex++.app` 启动，再执行 `curl -fsSL https://raw.githubusercontent.com/anson-no-bug/codex-themes-demon-slayer/main/install.sh | sh -s -- --check`，确认只读健康检查通过。
 
 完整的安装流程、健康检查、更新和卸载方式见 [INSTALL.md](./INSTALL.md)。
 
