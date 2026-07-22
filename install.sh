@@ -140,7 +140,7 @@ install_codexplusplus() {
   fi
 
   [ "$CHECK_ONLY" -eq 0 ] \
-    || fail "BigPizzaV3 Codex++ 未安装或不是最新版（本地 $INSTALLED_VERSION，远端 $RELEASE_VERSION）。"
+    || fail "BigPizzaV3 Codex++ 未安装或不是最新版（本地 ${INSTALLED_VERSION}，远端 ${RELEASE_VERSION}）。"
   [ -d "$APP_INSTALL_ROOT" ] || mkdir -p "$APP_INSTALL_ROOT"
   [ -w "$APP_INSTALL_ROOT" ] \
     || fail "没有写入 $APP_INSTALL_ROOT 的权限；请让 AI 在获得授权后安装，或设置 CODEXPLUSPLUS_APP_DIR。"
@@ -150,7 +150,7 @@ install_codexplusplus() {
   mkdir -p "$MOUNT_DIR"
   DMG_PATH="$TEMP_ROOT/CodexPlusPlus.dmg"
   DMG_URL="https://github.com/$CODEXPLUSPLUS_REPO/releases/download/$RELEASE_TAG/CodexPlusPlus-$RELEASE_VERSION-macos-$RELEASE_ARCH.dmg"
-  say "下载 BigPizzaV3 Codex++ $RELEASE_VERSION（$RELEASE_ARCH）。"
+  say "下载 BigPizzaV3 Codex++ ${RELEASE_VERSION}（${RELEASE_ARCH}）。"
   curl -fL --retry 2 --connect-timeout 20 "$DMG_URL" -o "$DMG_PATH" \
     || fail "Codex++ 安装包下载失败：$DMG_URL"
   hdiutil attach "$DMG_PATH" -nobrowse -readonly -mountpoint "$MOUNT_DIR" -quiet \
@@ -162,7 +162,7 @@ install_codexplusplus() {
   verify_app "$MOUNT_DIR/Codex++ 管理工具.app" com.bigpizzav3.codexplusplus.manager \
     || fail "DMG 内管理工具的签名或 bundle id 不正确。"
 
-  say "安装 Codex++ 与管理工具到 $APP_INSTALL_ROOT。"
+  say "安装 Codex++ 与管理工具到 ${APP_INSTALL_ROOT}。"
   ditto --rsrc --extattr "$MOUNT_DIR/Codex++.app" "$LAUNCHER_APP"
   ditto --rsrc --extattr "$MOUNT_DIR/Codex++ 管理工具.app" "$MANAGER_APP"
   verify_app "$LAUNCHER_APP" com.bigpizzav3.codexplusplus \

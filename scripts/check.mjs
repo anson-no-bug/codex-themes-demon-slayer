@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const entryPath = resolve(root, "index.js");
 const packagePath = resolve(root, "package.json");
+const installerPath = resolve(root, "install.sh");
 const packageJson = JSON.parse(readFileSync(packagePath, "utf8"));
 const errors = [];
 
@@ -12,6 +13,14 @@ if (!/^\d+\.\d+\.\d+(?:[-+].*)?$/.test(packageJson.version || "")) {
   errors.push("package.json version is not semver");
 }
 if (!existsSync(entryPath)) errors.push("index.js is missing; run npm run build");
+if (!existsSync(installerPath)) errors.push("install.sh is missing");
+
+if (existsSync(installerPath)) {
+  const installer = readFileSync(installerPath, "utf8");
+  if (/\$[A-Za-z_][A-Za-z0-9_]*[^\x00-\x7F]/u.test(installer)) {
+    errors.push("install.sh has an unbraced variable immediately followed by non-ASCII text");
+  }
+}
 
 if (existsSync(entryPath)) {
   const source = readFileSync(entryPath, "utf8");
