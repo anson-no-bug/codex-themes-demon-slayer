@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="鬼杀队任务中枢图标">
+  <defs>
+    <linearGradient id="night" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#111820"/>
+      <stop offset="1" stop-color="#080a0d"/>
+    </linearGradient>
+    <linearGradient id="blade" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#d7f6ff"/>
+      <stop offset=".55" stop-color="#58b9da"/>
+      <stop offset="1" stop-color="#1d4e6a"/>
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="24" fill="url(#night)"/>
+  <path d="M16 34h96v12H16zM16 58h96v12H16zM16 82h96v12H16z" fill="#113e31"/>
+  <path d="M28 22h12v84H28zM52 22h12v84H52zM76 22h12v84H76zM100 22h12v84h-12z" fill="#07110f"/>
+  <circle cx="64" cy="64" r="38" fill="#0d1117" stroke="#a98ad4" stroke-width="3"/>
+  <g fill="none" stroke-linecap="round">
+    <path d="M40 91 85 35" stroke="#091016" stroke-width="12"/>
+    <path d="M40 91 85 35" stroke="url(#blade)" stroke-width="5"/>
+    <path d="m37 84 11 9" stroke="#d9bd73" stroke-width="5"/>
+    <path d="M88 92 43 36" stroke="#091016" stroke-width="12"/>
+    <path d="M88 92 43 36" stroke="#dfe6ea" stroke-width="5"/>
+    <path d="m80 92 10-8" stroke="#d9bd73" stroke-width="5"/>
+  </g>
+  <circle cx="64" cy="64" r="10" fill="#10151b" stroke="#d9bd73" stroke-width="3"/>
+  <path d="M64 54c2 7 6 9 10 10-6 1-9 5-10 10-1-5-4-9-10-10 4-1 8-3 10-10Z" fill="#a98ad4"/>
+</svg>

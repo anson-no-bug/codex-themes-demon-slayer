@@ -1,0 +1,386 @@
+<!doctype html>
+<html lang="zh-CN" data-kisatsutai-theme="water" data-kisatsutai-motion="on" data-kisatsutai-density="immersive" data-kisatsutai-mission-state="idle">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>鬼杀队任务中枢 · Codex++ 主题预览</title>
+    <link rel="stylesheet" href="../src/theme.css" />
+    <link rel="stylesheet" href="./preview.css" />
+  </head>
+  <body>
+    <div class="preview-toolbar" aria-label="预览控制">
+      <div class="preview-toolbar__brand">
+        <span class="preview-toolbar__seal" aria-hidden="true"></span>
+        <span><b>队服预览</b><small>CODEX++ RENDERER TWEAK</small></span>
+      </div>
+      <div class="preview-toolbar__control">
+        <span>呼吸配色</span>
+        <div class="preview-toolbar__group" aria-label="呼吸法">
+          <button class="breath-option" data-breath="water" aria-pressed="true">水</button>
+          <button class="breath-option" data-breath="flame" aria-pressed="false">炎</button>
+          <button class="breath-option" data-breath="thunder" aria-pressed="false">雷</button>
+          <button class="breath-option" data-breath="insect" aria-pressed="false">虫</button>
+        </div>
+      </div>
+      <div class="preview-toolbar__control preview-toolbar__squad-control">
+        <span>出战人数</span>
+        <div class="preview-toolbar__group" aria-label="出战人数">
+          <button data-squad-size="1" aria-pressed="false">1</button>
+          <button data-squad-size="2" aria-pressed="false">2</button>
+          <button data-squad-size="3" aria-pressed="true">3</button>
+          <button data-squad-size="4" aria-pressed="false">4+</button>
+        </div>
+      </div>
+      <label class="preview-toolbar__control preview-toolbar__token-control" for="token-remaining">
+        <span>Token 余量</span>
+        <input id="token-remaining" type="range" min="0" max="100" value="78" />
+        <output id="token-remaining-output" for="token-remaining">78%</output>
+      </label>
+      <div class="preview-toolbar__control preview-toolbar__states">
+        <span>任务状态</span>
+        <div class="preview-toolbar__group" aria-label="任务状态">
+          <button data-mission-state="idle" aria-pressed="true">待命</button>
+          <button data-mission-state="tracking" aria-pressed="false">追踪</button>
+          <button data-mission-state="blocked" aria-pressed="false">受阻</button>
+          <button data-mission-state="returned" aria-pressed="false">归队</button>
+        </div>
+      </div>
+      <button class="preview-motion-toggle" type="button" role="switch" aria-checked="true">动效：开</button>
+    </div>
+
+    <div id="kisatsutai-mission-strip" class="kisatsutai-mission-strip" data-state="idle" role="status" aria-live="polite">
+      <span class="kisatsutai-strip-crest" aria-hidden="true"></span>
+      <span class="kisatsutai-strip-copy">
+        <span class="kisatsutai-strip-eyebrow">鬼杀队 · 第肆区</span>
+        <span class="kisatsutai-strip-status">等待鎹鸦回报</span>
+      </span>
+      <span id="strip-squad" class="kisatsutai-avatar-stack kisatsutai-strip-squad" aria-label="负责队员"></span>
+      <span class="kisatsutai-strip-rank" aria-label="任务等级 丁">丁</span>
+      <span class="kisatsutai-strip-opponent" data-state="known" data-opponent="rui" aria-label="当前对手 累，下弦之伍">
+        <span class="kisatsutai-opponent-portrait" aria-hidden="true"></span>
+        <span class="kisatsutai-opponent-copy">
+          <small class="kisatsutai-opponent-rank">下弦之伍 / 下弦讨伐</small>
+          <b class="kisatsutai-opponent-name">累</b>
+          <em class="kisatsutai-opponent-technique">血鬼术 · 刻线牢</em>
+        </span>
+        <span class="kisatsutai-opponent-difficulty">
+          <strong class="kisatsutai-difficulty-grade">丁</strong>
+          <small class="kisatsutai-difficulty-label">下弦讨伐</small>
+        </span>
+      </span>
+      <span class="kisatsutai-invasion-meter" data-kisatsutai-invasion="true" data-state="known" aria-label="鬼王侵蚀 78%">
+        <span class="kisatsutai-invasion-figure" aria-hidden="true"></span>
+        <span class="kisatsutai-invasion-body">
+        <span class="kisatsutai-invasion-heading">
+          <b>鬼王侵蚀</b>
+          <strong class="kisatsutai-invasion-value">78%</strong>
+        </span>
+        <span class="kisatsutai-invasion-dots" aria-hidden="true">
+          <i data-active="true"></i><i data-active="true"></i><i data-active="true"></i><i data-active="true"></i><i data-active="true"></i>
+          <i data-active="true"></i><i data-active="true"></i><i data-active="true"></i><i></i><i></i>
+        </span>
+        </span>
+      </span>
+    </div>
+
+    <div class="preview-app">
+      <aside class="preview-sidebar">
+        <div class="preview-brand">
+          <span class="preview-brand__mark" aria-hidden="true">
+            <i></i><i></i>
+          </span>
+          <span>
+            <strong>鬼杀队</strong>
+            <small>任务中枢</small>
+          </span>
+        </div>
+
+        <button class="preview-new-task" type="button" data-kisatsutai-action="new-task">
+          <span aria-hidden="true">＋</span>
+          <span>接取讨伐</span>
+          <kbd>⌘ N</kbd>
+        </button>
+
+        <label class="preview-search">
+          <span aria-hidden="true">⌕</span>
+          <span class="sr-only">调查任务记录</span>
+          <input id="mission-search" type="search" placeholder="调查鬼的踪迹…" />
+          <kbd>⌘ K</kbd>
+        </label>
+
+        <nav class="preview-nav" aria-label="讨伐任务">
+          <div class="preview-nav__label">
+            <span>讨伐任务</span>
+            <span id="mission-count">12</span>
+          </div>
+          <div id="mission-list" class="preview-task-list">
+            <a href="#mission-147" data-kisatsutai-task="true" data-subagent-count="3" aria-current="page">
+              <span class="kisatsutai-task-rank" aria-hidden="true"></span>
+              <span><b>西北山道 · 失踪案</b><small>追踪中 · 刚刚</small></span>
+              <em>甲</em>
+            </a>
+            <a href="#mission-146" data-kisatsutai-task="true" data-subagent-count="1">
+              <span class="kisatsutai-task-rank" aria-hidden="true"></span>
+              <span><b>浅草街区 · 异响调查</b><small>已归档 · 12 分钟前</small></span>
+              <em>乙</em>
+            </a>
+            <a href="#mission-145" data-kisatsutai-task="true" data-subagent-count="2">
+              <span class="kisatsutai-task-rank" aria-hidden="true"></span>
+              <span><b>藤袭山 · 试炼修复</b><small>试炼中 · 1 小时前</small></span>
+              <em>丙</em>
+            </a>
+            <a href="#mission-144" data-kisatsutai-task="true" data-subagent-count="2">
+              <span class="kisatsutai-task-rank" aria-hidden="true"></span>
+              <span><b>蝶屋 · 案卷重整</b><small>已归档 · 昨日</small></span>
+              <em>丁</em>
+            </a>
+            <a href="#mission-143" data-kisatsutai-task="true" data-subagent-count="4">
+              <span class="kisatsutai-task-rank" aria-hidden="true"></span>
+              <span><b>锻刀村 · 构建异常</b><small>任务受阻 · 昨日</small></span>
+              <em>乙</em>
+            </a>
+            <a href="#mission-142" data-kisatsutai-task="true" data-subagent-count="3">
+              <span class="kisatsutai-task-rank" aria-hidden="true"></span>
+              <span><b>无限城 · 路由追踪</b><small>已归档 · 3 日前</small></span>
+              <em>甲</em>
+            </a>
+            <a href="#mission-141" data-kisatsutai-task="true" data-subagent-count="5">
+              <span class="kisatsutai-task-rank" aria-hidden="true"></span>
+              <span><b>那田蜘蛛山 · 依赖清剿</b><small>试炼中 · 4 日前</small></span>
+              <em>乙</em>
+            </a>
+            <a href="#mission-140" data-kisatsutai-task="true" data-subagent-count="2">
+              <span class="kisatsutai-task-rank" aria-hidden="true"></span>
+              <span><b>产屋敷宅邸 · 分支合流</b><small>已归档 · 5 日前</small></span>
+              <em>丙</em>
+            </a>
+            <a href="#mission-139" data-kisatsutai-task="true" data-subagent-count="4">
+              <span class="kisatsutai-task-rank" aria-hidden="true"></span>
+              <span><b>柱稽古场 · 回归压测</b><small>追踪中 · 6 日前</small></span>
+              <em>甲</em>
+            </a>
+            <a href="#mission-138" data-kisatsutai-task="true" data-subagent-count="3">
+              <span class="kisatsutai-task-rank" aria-hidden="true"></span>
+              <span><b>吉原游郭 · 夜行护送</b><small>已归档 · 1 周前</small></span>
+              <em>丁</em>
+            </a>
+            <a href="#mission-137" data-kisatsutai-task="true" data-subagent-count="6">
+              <span class="kisatsutai-task-rank" aria-hidden="true"></span>
+              <span><b>山顶废城 · 故障复盘</b><small>任务受阻 · 1 周前</small></span>
+              <em>乙</em>
+            </a>
+            <a href="#mission-136" data-kisatsutai-task="true" data-subagent-count="3">
+              <span class="kisatsutai-task-rank" aria-hidden="true"></span>
+              <span><b>刀匠村 · 黎明交付</b><small>已归档 · 2 周前</small></span>
+              <em>甲</em>
+            </a>
+          </div>
+        </nav>
+
+        <div class="preview-sidebar__footer">
+          <span class="preview-crow" aria-hidden="true">◆</span>
+          <span><b>鎹鸦在线</b><small>本地任务记录已同步</small></span>
+          <i aria-label="在线"></i>
+        </div>
+      </aside>
+
+      <main class="preview-main" data-kisatsutai-mission-surface="true">
+        <header class="preview-header">
+          <div class="preview-header__title">
+            <button class="preview-icon-button" type="button" aria-label="返回讨伐任务">‹</button>
+            <span>
+              <small class="preview-location" data-kisatsutai-location="true">
+                <span class="kisatsutai-location-icon" aria-hidden="true">
+                  <svg viewBox="0 0 16 16" fill="none"><path d="M8 14s4-4.1 4-7.6A4 4 0 1 0 4 6.4C4 9.9 8 14 8 14Z"></path><circle cx="8" cy="6.2" r="1.35"></circle></svg>
+                </span>
+                <span id="header-mission-location">任务地点 · 西北山道</span>
+              </small>
+              <strong>西北山道 · 失踪案调查</strong>
+            </span>
+          </div>
+          <div class="preview-header__actions">
+            <span class="kisatsutai-invasion-meter preview-invasion-meter" data-kisatsutai-invasion="true" data-state="known" aria-label="鬼王侵蚀 78%">
+              <span class="kisatsutai-invasion-figure" aria-hidden="true"></span>
+              <span class="kisatsutai-invasion-body">
+              <span class="kisatsutai-invasion-heading">
+                <b>鬼王侵蚀</b>
+                <strong class="kisatsutai-invasion-value">78%</strong>
+              </span>
+              <span class="kisatsutai-invasion-dots" aria-hidden="true">
+                <i data-active="true"></i><i data-active="true"></i><i data-active="true"></i><i data-active="true"></i><i data-active="true"></i>
+                <i data-active="true"></i><i data-active="true"></i><i data-active="true"></i><i></i><i></i>
+              </span>
+              </span>
+            </span>
+            <span class="preview-mission-chip"><i></i>深夜追踪</span>
+            <button class="preview-icon-button" type="button" aria-label="更多任务操作">•••</button>
+          </div>
+        </header>
+
+        <div class="preview-scroll">
+          <section class="mission-brief" aria-labelledby="mission-title">
+            <span class="mission-brief__backdrop" aria-hidden="true"></span>
+            <div class="mission-brief__copy">
+              <span class="mission-kicker">主公敕令 / PRIORITY A</span>
+              <h1 id="mission-title">山道失踪者的案卷，<br /><em>在天亮前查清。</em></h1>
+              <p>调查最近三次失踪的共同路径，派遣两支小队并行追踪，在不破坏原工作区的前提下修复异常。</p>
+            </div>
+            <div class="mission-command">
+              <div id="mission-cast" class="mission-cast" aria-label="本次出战队员"></div>
+              <div class="mission-command__meta">
+                <span><small>任务负责人</small><b id="mission-lead">灶门炭治郎</b></span>
+                <div class="mission-brief__stamp" aria-label="任务等级丁">
+                  <span id="mission-grade">丁</span>
+                  <small id="mission-grade-label">下弦讨伐</small>
+                </div>
+              </div>
+            </div>
+            <div id="mission-opponent" class="mission-opponent kisatsutai-strip-opponent" data-state="known" data-opponent="rui" role="group" aria-label="当前对手 累，下弦之伍">
+              <span class="kisatsutai-opponent-portrait" aria-hidden="true"></span>
+              <span class="kisatsutai-opponent-copy">
+                <small class="kisatsutai-opponent-rank">下弦之伍 / 下弦讨伐</small>
+                <b class="kisatsutai-opponent-name">累</b>
+                <em class="kisatsutai-opponent-technique">血鬼术 · 刻线牢</em>
+              </span>
+              <span class="kisatsutai-opponent-difficulty">
+                <strong class="kisatsutai-difficulty-grade">丁</strong>
+                <small class="kisatsutai-difficulty-label">下弦讨伐</small>
+              </span>
+            </div>
+            <dl class="mission-facts">
+              <div><dt>任务类型</dt><dd>调查 / 修复</dd></div>
+              <div><dt>危险等级</dt><dd><span class="danger-bars" data-danger-level="2" aria-label="二级危险"><i></i><i></i><i></i><i></i><i></i></span></dd></div>
+              <div>
+                <dt><span class="kisatsutai-location-icon" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none"><path d="M8 14s4-4.1 4-7.6A4 4 0 1 0 4 6.4C4 9.9 8 14 8 14Z"></path><circle cx="8" cy="6.2" r="1.35"></circle></svg></span>任务地点</dt>
+                <dd id="mission-location">西北山道</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section class="mission-timeline" aria-label="作战记录">
+            <article class="mission-message mission-message--order">
+              <div class="message-avatar message-avatar--seal" aria-hidden="true">令</div>
+              <div class="message-body">
+                <header><b>任务指令</b><time>23:41</time></header>
+                <p>分析项目中的任务状态与交互入口。先调查 Codex++ 如何注入 renderer tweak，再由炭治郎统筹、善逸侦察、蝴蝶忍验证。</p>
+                <div class="order-tags">
+                  <span>保留原事件</span><span>可热重载</span><span>支持低动态</span>
+                </div>
+              </div>
+            </article>
+
+            <article class="mission-message mission-message--assistant">
+              <div class="message-avatar message-avatar--crow" aria-hidden="true">◆</div>
+              <div class="message-body">
+                <header><b>鎹鸦回报</b><time>23:42</time></header>
+                <p>已确认 Codex++ 通过追加 preload 加载 renderer tweak，DOM 变更应保持幂等，并在 <code>stop()</code> 中完整回收。</p>
+              </div>
+            </article>
+
+            <article class="intel-card" data-kisatsutai-tool="intel">
+              <header>
+                <span class="tool-symbol" aria-hidden="true">⌁</span>
+                <span><b>鬼迹调查完成</b><small>3 条情报 · 可信</small></span>
+                <span class="intel-card__status">鎹鸦侦察</span>
+              </header>
+              <div class="intel-path">
+                <span><i>01</i><b>加载器</b><small>极小 app.asar 入口补丁</small></span>
+                <span><i>02</i><b>运行时</b><small>主进程注册追加 preload</small></span>
+                <span><i>03</i><b>队服</b><small>DOM 观察与设置页注入</small></span>
+              </div>
+              <footer><span>来源：ARCHITECTURE.md</span><button type="button">展开案卷</button></footer>
+            </article>
+
+            <section class="squad-board" aria-labelledby="squad-title">
+              <header>
+                <span>
+                  <small>PARALLEL DISPATCH</small>
+                  <h2 id="squad-title">派遣小队</h2>
+                </span>
+                <button id="dispatch-squad" type="button">重新编队</button>
+              </header>
+              <div id="squad-grid" class="squad-grid">
+                <article data-character="tanjiro">
+                  <span class="squad-member-avatar" data-character="tanjiro" aria-hidden="true"></span>
+                  <span><b>灶门炭治郎</b><small>主任务 · 调查统筹</small></span>
+                  <em data-squad-status="tracking"><i></i>追踪中</em>
+                </article>
+                <article data-character="zenitsu">
+                  <span class="squad-member-avatar" data-character="zenitsu" aria-hidden="true"></span>
+                  <span><b>我妻善逸</b><small>subagent 01 · 快速检索</small></span>
+                  <em data-squad-status="tracking"><i></i>追踪中</em>
+                </article>
+                <article data-character="shinobu">
+                  <span class="squad-member-avatar" data-character="shinobu" aria-hidden="true"></span>
+                  <span><b>蝴蝶忍</b><small>subagent 02 · 分析验证</small></span>
+                  <em data-squad-status="done"><i></i>采样完成</em>
+                </article>
+              </div>
+            </section>
+
+            <article class="forge-card" data-kisatsutai-tool="forge">
+              <header>
+                <span class="tool-symbol" aria-hidden="true">火</span>
+                <span><b>锻刀工坊</b><small>构建与校验</small></span>
+                <span class="forge-card__live"><i></i>正在淬炼</span>
+              </header>
+              <pre aria-label="终端输出"><code><span class="prompt">›</span> npm run build
+<span class="muted">Built renderer tweak index.js</span>
+<span class="prompt">›</span> codexplusplus validate-tweak .
+<span class="success">✓ 鬼杀队任务中枢 is a valid Codex++ tweak</span></code></pre>
+            </article>
+
+            <article class="route-card" data-kisatsutai-tool="route">
+              <header>
+                <span><small>MISSION ROUTE</small><b>作战路线</b></span>
+                <strong>3 / 4</strong>
+              </header>
+              <div class="route-steps">
+                <span data-state="done"><i>✓</i><b>调查</b><small>确认注入链路</small></span>
+                <span data-state="done"><i>✓</i><b>布阵</b><small>确定视觉物理</small></span>
+                <span data-state="active"><i>03</i><b>交战</b><small>实现完整主题</small></span>
+                <span data-state="pending"><i>04</i><b>归档</b><small>验证并打包</small></span>
+              </div>
+            </article>
+
+            <div id="live-messages" aria-live="polite"></div>
+          </section>
+        </div>
+
+        <form id="crow-composer" class="preview-composer" data-kisatsutai-composer="true">
+          <div class="kisatsutai-composer-kicker" aria-hidden="true">
+            <span class="kisatsutai-mini-crest"></span>
+            <span>鎹鸦传书</span>
+            <span class="kisatsutai-kicker-rule"></span>
+            <span class="kisatsutai-kicker-detail">任务指令</span>
+          </div>
+          <label>
+            <span class="sr-only">向鎹鸦下达任务</span>
+            <textarea id="crow-message" rows="1" placeholder="向鎹鸦下达任务…"></textarea>
+          </label>
+          <div class="composer-actions">
+            <span>
+              <button type="button" title="隐部补给" data-kisatsutai-action="attach" aria-label="隐部补给">＋</button>
+              <button type="button" title="选择呼吸法">呼吸法⌄</button>
+            </span>
+            <span>
+              <kbd>⌘ ↵</kbd>
+              <button id="crow-send" type="submit" title="挥刀传令" data-kisatsutai-action="send" aria-label="挥刀传令">
+                <span class="kisatsutai-nichirin-icon" aria-hidden="true">
+                  <svg viewBox="0 0 28 28" fill="none">
+                    <path class="kisatsutai-nichirin-blade" d="M7.2 21.2 20.8 7.6l1.7-3.2-3.2 1.7L5.7 19.7Z"></path>
+                    <path class="kisatsutai-nichirin-edge" d="m8.2 19.8 12-12"></path>
+                    <path class="kisatsutai-nichirin-guard" d="m4.8 17.8 5.4 5.4M5.5 22.4l4-4"></path>
+                    <path class="kisatsutai-nichirin-handle" d="m3.3 24.7 3.5-3.5"></path>
+                  </svg>
+                </span>
+              </button>
+            </span>
+          </div>
+        </form>
+      </main>
+    </div>
+
+    <script src="./preview.js"></script>
+  </body>
+</html>

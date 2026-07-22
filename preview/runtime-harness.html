@@ -1,0 +1,552 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>鬼杀队任务中枢 · Runtime Harness</title>
+    <style>
+      * { box-sizing: border-box; }
+      :root {
+        --color-background: #ffffff;
+        --color-background-primary: #ffffff;
+        --color-background-surface: #ffffff;
+        --color-background-surface-under: #ffffff;
+        --color-background-secondary: #f7f7f8;
+        --color-background-elevated-primary: #ffffff;
+        --color-background-elevated-primary-opaque: #ffffff;
+        --color-background-elevated-secondary: #f7f7f8;
+        --color-background-control: #ffffff;
+        --color-background-button-secondary: #ffffff;
+        --color-token-bg-primary: #ffffff;
+        --color-token-bg-secondary: #f7f7f8;
+        --color-token-bg-fog: #ffffff;
+        --color-token-main-surface-primary: #ffffff;
+        --color-token-side-bar-background: #f7f7f8;
+        --color-token-input-background: #ffffff;
+        --color-token-editor-background: #ffffff;
+        --color-token-menu-background: #eef1f4;
+        --color-token-focus-border: #2f80ed;
+        --color-token-text-primary: #202123;
+        --color-token-text-secondary: #666b73;
+        --color-token-description-foreground: #666b73;
+        --color-token-conversation-body: #202123;
+        --color-text-foreground: #202123;
+        --color-text-foreground-secondary: #666b73;
+        --color-token-button-foreground: #202123;
+        --color-token-icon-foreground: #202123;
+        --color-icon-primary: #202123;
+        --color-icon-secondary: #666b73;
+        --color-token-foreground: #202123;
+        --color-token-border: #d8dadd;
+        --color-token-border-light: #d8dadd;
+      }
+      :root.dark {
+        --color-token-editor-background: #141617;
+        --color-token-menu-background: #000000;
+        --color-token-focus-border: #44a7ff;
+      }
+      html, body {
+        min-height: 100%;
+        margin: 0;
+        color: var(--color-token-text-primary);
+        background: var(--color-background);
+      }
+      body { padding: 64px 24px 180px; font-family: system-ui, sans-serif; }
+      .harness-controls { position: fixed; z-index: 2147483600; inset: 12px auto auto 16px; display: flex; gap: 8px; }
+      .harness-controls button { min-height: 36px; padding: 0 12px; }
+      .harness-grid { display: grid; grid-template-columns: 230px minmax(0, 1fr) 286px; gap: 18px; }
+      aside, main, #settings-root { padding: 18px; border: 1px solid currentColor; }
+      aside { display: flex; flex-direction: column; gap: 12px; }
+      aside a { padding: 10px; color: inherit; text-decoration: none; }
+      .project-fixture { display: flex; align-items: center; gap: 8px; }
+      [data-app-action-sidebar-project-row] {
+        min-width: 0;
+        height: 38px;
+        padding: 0 10px;
+        overflow-x: hidden;
+      }
+      [data-app-action-sidebar-project-label] { min-width: 0; flex: 1; }
+      [data-host-project-action-rail] {
+        display: grid;
+        width: 24px;
+        min-width: 24px;
+        height: 24px;
+        align-items: center;
+        justify-items: end;
+      }
+      [data-host-project-action-shell] {
+        display: inline-flex;
+        justify-self: end;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 180ms ease;
+      }
+      [data-app-action-sidebar-project-row]:hover [data-host-project-action-shell],
+      [data-app-action-sidebar-project-row]:focus-within [data-host-project-action-shell] {
+        opacity: 1;
+        visibility: visible;
+      }
+      [data-host-project-action-shell] button { width: 24px; height: 24px; padding: 4px; border: 0; }
+      [data-host-project-icon] {
+        display: block;
+        width: 16px;
+        height: 16px;
+        overflow: visible;
+        opacity: 1;
+      }
+      [data-host-project-icon] svg { width: 16px; height: 16px; }
+      [data-host-thread-rail] {
+        position: absolute;
+        z-index: 10;
+        top: 0;
+        right: 0;
+        display: flex;
+        width: 52px;
+        min-width: 52px;
+        height: 100%;
+        align-items: center;
+        justify-content: flex-end;
+        padding-right: 4px;
+      }
+      [data-host-thread-rail] svg { width: 18px; height: 18px; }
+      [data-host-hover-action] {
+        position: absolute;
+        z-index: 11;
+        top: 2px;
+        right: 2px;
+        display: grid;
+        width: 34px;
+        height: 34px;
+        place-items: center;
+        border: 1px solid currentColor;
+        border-radius: 5px;
+        background: #111;
+        opacity: 0;
+        visibility: hidden;
+      }
+      [data-app-action-sidebar-thread-row]:hover [data-host-hover-action] {
+        opacity: 1;
+        visibility: visible;
+      }
+      [data-app-action-sidebar-thread-row][data-host-running="true"]:hover [data-host-hover-action] {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
+      main { min-height: 680px; }
+      [data-host-conversation-transcript] {
+        width: min(820px, calc(100% - 56px));
+        margin: 32px auto 0;
+        padding: 24px 28px 52px;
+        line-height: 1.65;
+      }
+      [data-host-conversation-transcript] > * + * { margin-top: 24px; }
+      [data-host-conversation-transcript] h1 { margin: 0; font-size: 17px; }
+      [data-host-conversation-transcript] p { margin: 8px 0 0; }
+      [data-host-user-message] {
+        width: fit-content;
+        max-width: 76%;
+        margin-left: auto;
+        padding: 10px 14px;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.08);
+      }
+      [data-host-tool-row] { color: var(--color-token-text-secondary); }
+      [data-pip-obstacle="thread-summary-panel"] { align-self: start; padding: 12px; border: 1px solid currentColor; border-radius: 16px; }
+      [data-pip-obstacle="thread-summary-panel"] section { padding: 8px 0; border-bottom: 1px solid currentColor; }
+      [data-pip-obstacle="thread-summary-panel"] header button { width: 100%; padding: 8px; text-align: left; }
+      [data-pip-obstacle="thread-summary-panel"] ul { margin: 4px 0 0; padding-left: 28px; }
+      [data-testid="tool-search"] { margin-top: 30px; padding: 20px; border: 1px solid currentColor; }
+      [data-host-composer-shell] {
+        position: relative;
+        width: min(908px, calc(100% - 24px));
+        margin: 24px 0 0 auto;
+        padding-inline: 24px;
+        background: linear-gradient(90deg, rgba(0, 0, 0, 0.42), transparent 12% 88%, rgba(0, 0, 0, 0.42));
+        box-shadow: -24px 0 30px rgba(0, 0, 0, 0.42), 24px 0 30px rgba(0, 0, 0, 0.42);
+        filter: drop-shadow(18px 0 18px rgba(0, 0, 0, 0.34));
+      }
+      [data-thread-scroll-footer="true"] {
+        position: relative;
+        width: 100%;
+        padding: 44px 0 24px;
+        background: rgba(0, 0, 0, 0.26);
+        box-shadow: 0 -18px 32px rgba(0, 0, 0, 0.28);
+      }
+      [data-host-thread-footer-stage] {
+        position: relative;
+        margin-top: 24px;
+        padding: 18px 0;
+        background:
+          linear-gradient(90deg, rgba(213, 226, 218, 0.28), rgba(31, 47, 39, 0.08)),
+          var(--ki-location-butterfly-mansion);
+        background-position: center 38%;
+        background-size: cover;
+      }
+      [data-host-thread-footer-stage] [data-host-composer-shell] {
+        margin-inline: auto;
+      }
+      [data-host-thread-footer-backdrop] {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        justify-content: center;
+      }
+      [data-host-thread-footer-gradient] {
+        width: min(1120px, calc(100% - 120px));
+        height: 100%;
+        background:
+          linear-gradient(to top, var(--color-token-main-surface-primary) 0 72%, transparent 100%);
+        box-shadow:
+          -34px 0 38px rgba(0, 0, 0, 0.48),
+          34px 0 38px rgba(0, 0, 0, 0.48);
+      }
+      [data-pip-obstacle="thread-footer"] {
+        position: relative;
+        z-index: 1;
+      }
+      [data-host-plan-pill] {
+        width: min(610px, calc(100% - 48px));
+        margin-inline: auto;
+        padding: 12px 22px;
+        border: 1px solid rgba(209, 215, 211, 0.24);
+        border-radius: 24px 24px 0 0;
+        background: rgba(23, 25, 23, 0.72);
+        color: rgba(235, 239, 236, 0.78);
+        text-align: center;
+        backdrop-filter: blur(12px);
+      }
+      [data-host-queued-message] {
+        width: min(1120px, calc(100% - 120px));
+        margin: 0 auto;
+        padding: 12px 22px;
+        border-top: 1px solid rgba(209, 215, 211, 0.18);
+        border-bottom: 1px solid rgba(209, 215, 211, 0.18);
+        background: rgba(17, 19, 18, 0.76);
+        color: rgba(235, 239, 236, 0.76);
+      }
+      [data-host-composer-shell]::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(90deg, rgba(0, 0, 0, 0.32), transparent 16% 84%, rgba(0, 0, 0, 0.32));
+        box-shadow: 0 0 24px rgba(0, 0, 0, 0.4);
+        pointer-events: none;
+      }
+      [data-testid="composer"] { width: 100%; margin: 0; padding: 16px; border: 1px solid currentColor; background: #111; }
+      [data-testid="composer"] textarea { width: 100%; min-height: 46px; }
+      [data-composer-actions] { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
+      [data-testid="composer"] button { width: 40px; height: 40px; }
+      [data-host-native-overlay] {
+        width: min(760px, calc(100vw - 48px));
+        padding: 28px;
+        border: 1px solid var(--color-token-border);
+        border-radius: 22px;
+        color: var(--color-token-text-primary);
+        background: var(--color-background-elevated-primary);
+      }
+      [data-host-native-overlay] h2 {
+        margin: 0;
+        color: var(--color-token-text-primary);
+      }
+      [data-host-native-overlay] p {
+        color: var(--color-token-text-secondary);
+      }
+      [data-host-native-overlay] button {
+        min-height: 36px;
+        color: var(--color-token-button-foreground);
+      }
+      [data-host-native-viewer-toolbar] {
+        position: absolute;
+        top: 18px;
+        right: 18px;
+        display: flex;
+        gap: 8px;
+      }
+      [data-host-native-viewer-control] {
+        display: inline-flex;
+        width: 44px;
+        height: 44px;
+        min-height: 44px;
+        align-items: center;
+        justify-content: center;
+        border: 0;
+        border-radius: 999px;
+        color: var(--color-token-foreground);
+        background: color-mix(
+          in srgb,
+          var(--color-token-editor-background) 95%,
+          transparent
+        );
+      }
+      [data-host-native-viewer-control]:hover {
+        color: var(--color-token-foreground);
+        background: var(--color-token-menu-background);
+        box-shadow: 0 0 0 1px var(--color-token-focus-border);
+      }
+      #settings-root { margin-top: 24px; }
+      @media (max-width: 980px) {
+        .harness-grid { grid-template-columns: 1fr; }
+        [data-host-composer-shell] { width: 100%; padding-inline: 16px; }
+      }
+    </style>
+  </head>
+  <body data-kisatsutai-harness="true">
+    <div class="harness-controls" aria-label="运行时测试控制">
+      <button id="stop-tweak" type="button">Stop tweak</button>
+      <button id="restart-tweak" type="button">Restart tweak</button>
+    </div>
+    <div class="harness-grid">
+      <aside>
+        <button type="button">New task</button>
+        <button type="button">Current branch</button>
+        <input type="search" placeholder="Search" aria-label="Search" />
+        <div
+          class="project-fixture group/folder-row text-token-foreground"
+          data-app-action-sidebar-project-row
+          data-app-action-sidebar-project-label="auto-leads"
+          role="button"
+        >
+          <span class="project-fixture" data-host-project-content>
+            <svg data-host-project-folder viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <path d="M2.8 5.4h5l1.4 1.7h8v7.5H2.8Z" stroke="currentColor" stroke-width="1.4" />
+            </svg>
+            <span class="text-fade-truncate" data-host-project-label>auto-leads</span>
+          </span>
+          <span class="grid h-6" data-host-project-action-rail>
+            <span
+              class="col-start-1 row-start-1 inline-flex justify-self-end opacity-0 group-hover/folder-row:opacity-100"
+              data-host-project-action-shell
+            >
+              <button type="button" aria-label="Create a new thread in project auto-leads">
+                <span data-host-project-icon>
+                  <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                    <path d="M5 15 15 5M11 5h4v4M4 16h5" stroke="currentColor" stroke-width="1.5" />
+                  </svg>
+                </span>
+              </button>
+            </span>
+          </span>
+        </div>
+        <div
+          class="project-fixture group/folder-row text-token-foreground"
+          data-app-action-sidebar-project-row
+          data-app-action-sidebar-project-label="archived-project"
+          role="button"
+        >
+          <span class="project-fixture" data-host-project-content>
+            <svg data-host-project-folder viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <path d="M2.8 5.4h5l1.4 1.7h8v7.5H2.8Z" stroke="currentColor" stroke-width="1.4" />
+            </svg>
+            <span class="text-fade-truncate" data-host-project-label>archived-project</span>
+          </span>
+          <span class="grid h-6" data-host-project-action-rail>
+            <span
+              class="col-start-1 row-start-1 inline-flex justify-self-end opacity-0 group-hover/folder-row:opacity-100"
+              data-host-project-action-shell
+            >
+              <button type="button" aria-label="New chat in project archived-project" aria-disabled="true" disabled>
+                <span data-host-project-icon>
+                  <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                    <path d="M5 15 15 5M11 5h4v4M4 16h5" stroke="currentColor" stroke-width="1.5" />
+                  </svg>
+                </span>
+              </button>
+            </span>
+          </span>
+        </div>
+        <a
+          href="/local/test-task"
+          data-app-action-sidebar-thread-row
+          data-app-action-sidebar-thread-id="test-task"
+          data-app-action-sidebar-thread-active="true"
+          data-app-action-sidebar-thread-title="Mountain route investigation"
+          data-host-running="true"
+          data-subagent-count="6"
+          aria-current="page"
+        ><span data-thread-title-trigger><span data-thread-title>Mountain route investigation</span></span>
+          <span data-hover-card-open-immediately data-host-thread-rail aria-label="Working">
+            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <circle cx="10" cy="10" r="6" stroke="currentColor" stroke-width="1.5" />
+            </svg>
+          </span>
+          <button type="button" data-host-hover-action aria-label="Archive task">归档</button>
+        </a>
+        <a
+          href="/local/test-task-2"
+          data-app-action-sidebar-thread-row
+          data-app-action-sidebar-thread-id="test-task-2"
+          data-app-action-sidebar-thread-title="Night street repair"
+          data-subagent-count="4"
+        ><span data-thread-title-trigger><span data-thread-title>Night street repair</span></span>
+          <button type="button" data-host-hover-action aria-label="More task actions">•••</button>
+        </a>
+        <a
+          href="/local/test-task-3"
+          data-app-action-sidebar-thread-row
+          data-app-action-sidebar-thread-id="test-task-3"
+          data-app-action-sidebar-thread-title="Solo archive review"
+        ><span data-thread-title-trigger><span data-thread-title>Solo archive review</span></span></a>
+      </aside>
+      <main class="main-surface" data-app-shell-main-content-layout="thread-edge-scroll">
+        <div data-token-remaining="99840" data-token-limit="128000" aria-label="Token remaining 99840 / 128000"></div>
+        <div data-host-conversation-transcript>
+          <section>
+            <h1>Renderer host mock</h1>
+            <p>核心会话页继续保留任务情境，但正文应当拥有稳定、安静的阅读对比。</p>
+          </section>
+          <p data-host-user-message>请让背景继续可见，同时把长对话中的文字展示得更清楚。</p>
+          <p role="status" data-host-tool-row>Working on the mission</p>
+          <section>
+            <p>我会直接调整场景的中央明暗：用无边界、自然羽化的墨色光场压低背景细节，文字本身保持锐利；Codex 的发送、终端、文件、搜索和分支名称继续使用原生文案。</p>
+          </section>
+          <article data-testid="tool-search">Web search · 3 sources found</article>
+        </div>
+      </main>
+      <aside data-pip-obstacle="thread-summary-panel" aria-label="Thread summary panel">
+        <section data-section-key="artifacts">
+          <header><button type="button" aria-expanded="true">Outputs</button></header>
+          <ul><li>DESIGN.md</li><li>README.md</li><li>runtime-qa-v049.png</li></ul>
+        </section>
+        <section data-section-key="environment">
+          <header><button type="button" aria-expanded="true">Environment</button></header>
+          <button type="button" title="Switch branch">feature/session-squad</button>
+        </section>
+        <section data-section-key="tool-sources">
+          <header><button type="button" aria-expanded="true">Sources</button></header>
+          <ul><li>Official anime location still</li></ul>
+        </section>
+        <section data-section-key="background-subagents">
+          <header><button type="button" aria-expanded="true">Subagents</button></header>
+          <ul>
+            <li><button type="button" data-native-agent="subagent-a">UI audit</button></li>
+            <li><button type="button" data-native-agent="subagent-b">Asset research</button></li>
+          </ul>
+        </section>
+      </aside>
+    </div>
+    <section id="settings-root" aria-label="Tweak settings"></section>
+    <div data-host-thread-footer-stage>
+      <div data-thread-scroll-footer="true">
+        <div data-host-thread-footer-backdrop>
+          <div data-host-thread-footer-gradient></div>
+        </div>
+        <div data-pip-obstacle="thread-footer">
+          <div data-host-plan-pill>Step 1 / 4 · 10 files changed · +244 −373</div>
+          <div data-host-queued-message>Queued message · Steer · More actions</div>
+          <div data-host-composer-shell>
+            <form data-testid="composer">
+              <textarea placeholder="Ask anything" aria-label="Mission composer"></textarea>
+              <span data-composer-actions>
+                <button id="composer-microphone" type="button" aria-label="Voice input"><span aria-hidden="true">●</span></button>
+                <button id="composer-action" type="submit" aria-label="Send"><span aria-hidden="true">➤</span></button>
+              </span>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      var module = { exports: {} };
+      var exports = module.exports;
+    </script>
+    <script src="../index.js"></script>
+    <script>
+      const tweak = module.exports;
+      const values = new Map();
+      let pageHandle = null;
+      document.querySelector('[data-testid="composer"]').addEventListener("submit", (event) => {
+        event.preventDefault();
+        document.body.dataset.composerSubmits = String(
+          Number(document.body.dataset.composerSubmits || "0") + 1,
+        );
+      });
+      document.querySelectorAll("[data-native-agent]").forEach((button) => {
+        button.addEventListener("click", () => {
+          document.body.dataset.nativeAgentOpened = button.dataset.nativeAgent;
+        });
+      });
+      const api = {
+        process: "renderer",
+        manifest: {
+          id: "dev.local.demon-slayer-codex-theme",
+          name: "鬼灭之刃 · 鬼杀队任务中枢"
+        },
+        storage: {
+          get(key, fallback) { return values.has(key) ? values.get(key) : fallback; },
+          set(key, value) { values.set(key, value); },
+          delete(key) { values.delete(key); },
+          all() { return Object.fromEntries(values); }
+        },
+        react: {
+          getFiber(node) {
+            const section = node instanceof Element ? node.closest("section[data-section-key]") : null;
+            if (!section) return null;
+            const props = { sectionKey: section.dataset.sectionKey };
+            if (section.dataset.sectionKey === "background-subagents") {
+              props.backgroundAgents = [
+                { conversationId: "subagent-a" },
+                { conversationId: "subagent-b" }
+              ];
+            }
+            return {
+              memoizedProps: {},
+              child: null,
+              sibling: null,
+              return: {
+                memoizedProps: props,
+                child: null,
+                sibling: null,
+                return: null
+              }
+            };
+          }
+        },
+        settings: {
+          registerPage(page) {
+            pageHandle = page;
+            page.render(document.getElementById("settings-root"));
+            return {
+              unregister() {
+                document.getElementById("settings-root").replaceChildren();
+              }
+            };
+          }
+        },
+        log: {
+          debug() {},
+          info() {},
+          warn() {},
+          error() {}
+        }
+      };
+
+      async function startHarness() {
+        await tweak.start(api);
+        document.body.dataset.harnessState = "started";
+      }
+
+      document.getElementById("stop-tweak").addEventListener("click", () => {
+        tweak.stop();
+        document.body.dataset.harnessState = "stopped";
+      });
+      document.getElementById("restart-tweak").addEventListener("click", () => {
+        tweak.stop();
+        startHarness();
+      });
+      document.querySelectorAll("[data-app-action-sidebar-thread-row]").forEach((row) => {
+        row.addEventListener("click", (event) => {
+          event.preventDefault();
+          document.querySelectorAll("[data-app-action-sidebar-thread-row]").forEach((candidate) => {
+            candidate.removeAttribute("data-app-action-sidebar-thread-active");
+            candidate.removeAttribute("aria-current");
+          });
+          row.setAttribute("data-app-action-sidebar-thread-active", "true");
+          row.setAttribute("aria-current", "page");
+        });
+      });
+      startHarness();
+    </script>
+  </body>
+</html>
