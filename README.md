@@ -4,17 +4,21 @@
 
 ## 安装
 
-仅支持 macOS。先安装并启动过一次官方 Codex Desktop，再完全退出官方 Codex、Codex++ 与管理工具，然后执行：
+### macOS 一键安装
+
+先安装并启动过一次官方 Codex Desktop，再完全退出官方 Codex、Codex++ 与管理工具，然后执行：
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/anson-no-bug/codex-themes-demon-slayer/main/install.sh | sh
 ```
 
-用户不需要预装 Git、Node.js、Homebrew、ImageMagick 或 BigPizzaV3 Codex++。安装器会自动识别 Mac 架构、下载并校验 BigPizzaV3 官方 DMG、安装双 App，再把主题写入 `~/.config/Codex++/user_scripts/`。安装后完全退出 Codex，并从 `/Applications/Codex++.app` 启动；直接打开官方 Codex 不会加载主题。
+不需要预装 Git、Node.js、Homebrew、ImageMagick 或 Codex++。安装后从 `/Applications/Codex++.app` 启动即可。
 
-想交给 Codex 或其他能操作终端的 AI 时，可以直接说：
+### 一句话交给 AI 安装
 
-> 请在 macOS 终端执行 `curl -fsSL https://raw.githubusercontent.com/anson-no-bug/codex-themes-demon-slayer/main/install.sh | sh`；安装完成后从 `/Applications/Codex++.app` 启动，再执行 `curl -fsSL https://raw.githubusercontent.com/anson-no-bug/codex-themes-demon-slayer/main/install.sh | sh -s -- --check`，确认只读健康检查通过。
+> 请安装并检查这个 Codex 主题：https://github.com/anson-no-bug/codex-themes-demon-slayer
+
+BigPizzaV3 上游也提供 Windows 版本，但本项目的 Windows 一键安装尚未经过实机验收，因此当前不提供未经验证的 Windows 命令。
 
 完整的安装流程、健康检查、更新和卸载方式见 [INSTALL.md](./INSTALL.md)。
 
