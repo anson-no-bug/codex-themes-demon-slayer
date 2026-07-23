@@ -2,12 +2,14 @@
 
 日期：2026-07-22
 
-主题版本：`0.5.21`
+主题版本：`0.5.22`
 
 运行时：BigPizzaV3 Codex++ `>= 1.2.41`
 
 ## 当前发布基线
 
+- Codex Desktop 打包源码中的 Summary 键为 `artifacts / environment / tool-sources / background-subagents`；主题直接按这些结构键固定显示“任务案卷 / 任务案卷 / 渡鸦情报 / 出战小队”，不再匹配 `Outputs / Sources / Subagents / 子智能体` 等可见文字。
+- 回归测试会把四个模块标题换成无语义文案并改用带前缀或驼峰的结构键；重挂载后仍得到固定主题名，证明结果与宿主语言无关。
 - 交付物为 `demon-slayer-codex-theme.user.js`，由 BigPizzaV3 从 `~/.config/Codex++/user_scripts/` 外部注入；官方 Codex App、`app.asar` 与代码签名保持不变。
 - 运行时包含 13 位队员、12 位对手、19 张会话背景、1 个无惨侵蚀指标与 2 张短时效果图，共 47 个 WebP。
 - 整个任务窗口只绘制 1 张 viewport 共享背景；左栏、正文、Composer 与右侧案卷不重复加载地点图。

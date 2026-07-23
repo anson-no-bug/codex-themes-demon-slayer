@@ -819,6 +819,50 @@ let browser;
   );
   await overlayPage.screenshot({ path: nativeOverlayScreenshot, fullPage: true });
 
+  const modulePage = await browser.newPage({ viewport: { width: 1180, height: 780 } });
+  await modulePage.goto(pathToFileURL(harness).href, { waitUntil: "load" });
+  await modulePage.waitForTimeout(500);
+  await modulePage.evaluate(() => {
+    const arbitraryHeadings = {
+      artifacts: {
+        hostKey: "thread-summary-section-artifacts",
+        label: "任意案卷宿主文案",
+      },
+      environment: {
+        hostKey: "thread-summary-section-environment",
+        label: "任意环境宿主文案",
+      },
+      "tool-sources": {
+        hostKey: "thread-summary-section-tool-sources",
+        label: "任意来源宿主文案",
+      },
+      "background-subagents": {
+        hostKey: "thread-summary-section-backgroundAgents",
+        label: "任意队伍宿主文案",
+      },
+    };
+    for (const [key, fixture] of Object.entries(arbitraryHeadings)) {
+      const section = document.querySelector(`section[data-section-key="${key}"]`);
+      const button = section?.querySelector("header button[aria-expanded]");
+      if (!(section instanceof HTMLElement) || !(button instanceof HTMLElement)) continue;
+      section.dataset.sectionKey = fixture.hostKey;
+      const textNode = Array.from(button.childNodes).find(
+        (node) => node.nodeType === Node.TEXT_NODE && String(node.nodeValue || "").trim(),
+      );
+      if (textNode) textNode.nodeValue = fixture.label;
+    }
+    window.dispatchEvent(new Event("popstate"));
+  });
+  await modulePage.waitForTimeout(320);
+  const moduleMappedSummaryHeadings = await modulePage.evaluate(() => (
+    Object.fromEntries(Array.from(document.querySelectorAll(
+      "[data-kisatsutai-summary-section]",
+    )).map((section) => [
+      section.dataset.kisatsutaiSummarySection,
+      section.querySelector("header button")?.innerText?.replace(/\s+/g, " ").trim() || "",
+    ]))
+  ));
+
   const widePage = await browser.newPage({ viewport: { width: 2048, height: 420 } });
   await widePage.goto(pathToFileURL(harness).href, { waitUntil: "load" });
   await widePage.waitForTimeout(600);
@@ -1115,6 +1159,17 @@ let browser;
   if (!core.labels.headings.environment?.includes("任务案卷")) failures.push("environment dossier label was not localized");
   if (!core.labels.headings["tool-sources"]?.includes("渡鸦情报")) failures.push("raven intel label was not retained");
   if (!core.labels.headings["background-subagents"]?.includes("出战小队")) failures.push("squad label was not retained");
+  if (
+    !moduleMappedSummaryHeadings.artifacts?.includes("任务案卷")
+    || !moduleMappedSummaryHeadings.environment?.includes("任务案卷")
+    || !moduleMappedSummaryHeadings["tool-sources"]?.includes("渡鸦情报")
+    || !moduleMappedSummaryHeadings["background-subagents"]?.includes("出战小队")
+    || Object.values(moduleMappedSummaryHeadings).some((heading) => heading.includes("任意"))
+  ) {
+    failures.push(
+      `summary headings still depend on host display copy: ${JSON.stringify(moduleMappedSummaryHeadings)}`,
+    );
+  }
   if (core.labels.raven !== "渡鸦在线") failures.push("raven online status was not retained");
   if (
     !locationSwitchInitial.location
@@ -1351,6 +1406,7 @@ let browser;
     missionRestoredAfterSettings,
     nativeDialog,
     nativeImageViewer,
+    moduleMappedSummaryHeadings,
     mobileReadingScrim: mobile.readingScrim,
   }, null, 2));
 })().catch((error) => {

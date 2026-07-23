@@ -415,12 +415,6 @@ const DISPLAY_COPY = new Map([
   ["新任务", "接取讨伐"],
   ["新建任务", "接取讨伐"],
   ["新对话", "接取讨伐"],
-  ["outputs", "任务案卷"],
-  ["artifacts", "任务案卷"],
-  ["environment", "任务案卷"],
-  ["sources", "渡鸦情报"],
-  ["鎹鸦情报", "渡鸦情报"],
-  ["subagents", "出战小队"],
 ]);
 
 const ACTION_RULES = [
@@ -1808,25 +1802,60 @@ function getSummaryPanel() {
   return panel instanceof HTMLElement ? panel : null;
 }
 
+function normalizeSummarySectionKey(value) {
+  const key = normalizeText(value)
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const compactKey = key.replace(/-/g, "");
+  if (/(?:^|-)(?:outputs?|artifacts?)$/.test(key)) return "artifacts";
+  if (/(?:^|-)(?:environment|task-environment)$/.test(key)) return "environment";
+  if (/(?:^|-)(?:sources?|tool-sources?)$/.test(key)) return "tool-sources";
+  if (
+    /(?:^|-)(?:background-)?sub-?agents?$/.test(key)
+    || /(?:^|-)background-agents?$/.test(key)
+    || ["backgroundsubagent", "backgroundsubagents", "backgroundagent", "backgroundagents"]
+      .some((candidate) => compactKey.endsWith(candidate))
+  ) {
+    return "background-subagents";
+  }
+  return "";
+}
+
 function getSummarySectionKey(section) {
   if (!(section instanceof HTMLElement)) return "";
+  for (const candidate of [
+    section.dataset.sectionKey,
+    section.dataset.summarySection,
+    section.getAttribute("data-section-key"),
+    section.getAttribute("data-summary-section"),
+    section.getAttribute("data-testid"),
+  ]) {
+    const normalizedKey = normalizeSummarySectionKey(candidate);
+    if (normalizedKey) return normalizedKey;
+  }
+
   try {
     let fiber = apiRef?.react?.getFiber?.(section) || null;
     for (let depth = 0; fiber && depth < 8; depth += 1, fiber = fiber.return) {
-      const key = fiber.memoizedProps?.sectionKey;
-      if (typeof key === "string") return key;
+      for (const candidate of [
+        fiber.memoizedProps?.sectionKey,
+        fiber.pendingProps?.sectionKey,
+        fiber.key,
+      ]) {
+        const normalizedKey = normalizeSummarySectionKey(candidate);
+        if (normalizedKey) return normalizedKey;
+      }
     }
   } catch {
-    /* use the accessible heading fallback below */
+    /* continue with structural descendants below */
   }
 
-  const heading = normalizeText(
-    section.querySelector("header button[aria-expanded], button[aria-expanded]")?.textContent,
-  );
-  if (/(outputs?|artifacts?|任务案卷|产物|输出)/i.test(heading)) return "artifacts";
-  if (/(environment|任务地点|环境)/i.test(heading)) return "environment";
-  if (/(sources?|渡鸦情报|鎹鸦情报|来源|情报)/i.test(heading)) return "tool-sources";
-  if (/(subagents?|出战小队|代理|队员)/i.test(heading)) return "background-subagents";
+  if (findBackgroundAgents(section).found) return "background-subagents";
+  if (section.querySelector(
+    'button[title*="branch" i], button[aria-label*="branch" i], [data-testid*="branch" i]',
+  )) {
+    return "environment";
+  }
   return "";
 }
 
@@ -1889,22 +1918,18 @@ function patchSummaryHeading(section, key) {
     artifacts: {
       title: "任务案卷",
       mark: "卷",
-      aliases: /^(outputs?|artifacts?|任务案卷|输出|产物)$/i,
     },
     environment: {
       title: "任务案卷",
       mark: "卷",
-      aliases: /^(environment|任务案卷|任务地点|环境)$/i,
     },
     "tool-sources": {
       title: "渡鸦情报",
       mark: "情",
-      aliases: /^(sources?|渡鸦情报|鎹鸦情报|来源|情报)$/i,
     },
     "background-subagents": {
       title: "出战小队",
       mark: "队",
-      aliases: /^(subagents?|出战小队|代理|队员)$/i,
     },
   }[key];
   if (!configuration) return;
@@ -1915,7 +1940,10 @@ function patchSummaryHeading(section, key) {
   let node = walker.nextNode();
   while (node) {
     const current = String(node.nodeValue || "").trim();
-    if (configuration.aliases.test(current)) {
+    const owner = node.parentElement;
+    const insideMark = owner?.closest(".kisatsutai-summary-mark");
+    const visuallyHidden = owner?.closest("[hidden], [aria-hidden='true'], .sr-only");
+    if (current && !insideMark && !visuallyHidden) {
       setTextPatch(node, configuration.title);
       break;
     }
